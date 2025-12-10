@@ -12,6 +12,8 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 import com.foxit.flutterfoxitpdf.R;
+import java.io.InputStream;
+
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
