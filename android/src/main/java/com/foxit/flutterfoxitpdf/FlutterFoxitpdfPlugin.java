@@ -35,7 +35,6 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   public void onAttachedToEngine(@NonNull FlutterPlugin.FlutterPluginBinding flutterPluginBinding) {
     channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "flutter_foxitpdf");
     channel.setMethodCallHandler(this);
-    registerActivityLifecycleCallbacks();
   }
 
   @Override
@@ -49,11 +48,13 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   @Override
   public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
     activity = binding.getActivity();
+    registerActivityLifecycleCallbacks();
   }
 
   @Override
   public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
     activity = binding.getActivity();
+    registerActivityLifecycleCallbacks();
   }
 
   @Override
