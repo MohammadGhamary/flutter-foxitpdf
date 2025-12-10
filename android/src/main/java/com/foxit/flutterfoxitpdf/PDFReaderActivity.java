@@ -55,7 +55,7 @@ public class PDFReaderActivity extends FragmentActivity {
 
         pdfViewCtrl = new PDFViewCtrl(getApplicationContext());
 
-        getApplicationContext().getResources().openRawResource(R.raw.uiextensions_config);
+        InputStream stream = getApplicationContext().getResources().openRawResource(R.raw.uiextensions_config);
         Config config = new Config(stream);
 
         uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
