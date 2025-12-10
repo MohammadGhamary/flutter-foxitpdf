@@ -13,7 +13,8 @@ import android.text.TextUtils;
 import android.view.KeyEvent;
 import com.foxit.flutterfoxitpdf.R;
 import java.io.InputStream;
-
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -57,6 +58,7 @@ public class PDFReaderActivity extends FragmentActivity {
 
         pdfViewCtrl = new PDFViewCtrl(getApplicationContext());
 
+        Bundle bundle = getIntent().getExtras();
         String configJson = bundle.getString("configurations");
 
         if (configJson != null) {
