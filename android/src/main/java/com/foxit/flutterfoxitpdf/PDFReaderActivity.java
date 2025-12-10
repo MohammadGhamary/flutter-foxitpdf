@@ -66,7 +66,7 @@ public class PDFReaderActivity extends FragmentActivity {
             Config config = new Config(stream);
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
         }else {
-            uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
+            uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
         }
 
         uiextensionsManager.setAttachedActivity(this);
