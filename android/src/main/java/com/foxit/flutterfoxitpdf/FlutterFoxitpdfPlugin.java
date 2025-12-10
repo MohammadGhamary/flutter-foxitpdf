@@ -92,6 +92,8 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     }
     String path = call.argument("path");
     String password = call.argument("password");
+    HashMap<String, Object> configurationsMap = call.argument("configurations");
+    JSONObject configurations = new JSONObject(configurationsMap);
 
     if (path == null || path.trim().length() < 1) {
       result.error("" + Constants.e_ErrParam,"Invalid path", Constants.e_ErrParam);
@@ -108,6 +110,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     bundle.putInt("type", 0);
     bundle.putString("path", path);
     bundle.putString("password", password);
+    bundle.putString("configurations", configurations.toString());
     intent.putExtras(bundle);
 
     activity.startActivity(intent);
