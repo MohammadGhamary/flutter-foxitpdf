@@ -32,6 +32,8 @@ import com.foxit.uiextensions.utils.SystemUiHelper;
 import com.foxit.uiextensions.utils.UIToast;
 import com.foxit.uiextensions.config.Config;
 
+import com.foxit.uiextensions.controls.propertybar.IViewSettingsWindow;
+
 public class PDFReaderActivity extends FragmentActivity {
     public static final int REQUEST_OPEN_DOCUMENT_TREE = 0xF001;
     public static final int REQUEST_SELECT_DEFAULT_FOLDER = 0xF002;
@@ -69,6 +71,8 @@ public class PDFReaderActivity extends FragmentActivity {
         }else {
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
         }
+
+        uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_FIT_WIDTH, false);
 
         uiextensionsManager.setAttachedActivity(this);
         pdfViewCtrl.setUIExtensionsManager(uiextensionsManager);
