@@ -33,6 +33,9 @@ import com.foxit.uiextensions.utils.UIToast;
 import com.foxit.uiextensions.config.Config;
 
 import com.foxit.uiextensions.controls.propertybar.IViewSettingsWindow;
+import com.foxit.uiextensions.controls.toolbar.ToolbarItemConfig;
+import com.foxit.uiextensions.controls.toolbar.BaseBar;
+import com.foxit.uiextensions.controls.toolbar.IBarsHandler;
 
 public class PDFReaderActivity extends FragmentActivity {
     public static final int REQUEST_OPEN_DOCUMENT_TREE = 0xF001;
@@ -72,7 +75,10 @@ public class PDFReaderActivity extends FragmentActivity {
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
         }
 
-        uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_FIT_WIDTH, false);
+        uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_REFLOW, false);
+        uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FORM_TAB);
+        uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FILLSIGN_TAB);
+        uiextensionsManager.getBarManager().removeItem(IBarsHandler.BarName.TOP_BAR, BaseBar.TB_Position.Position_LT,0);
 
         uiextensionsManager.setAttachedActivity(this);
         pdfViewCtrl.setUIExtensionsManager(uiextensionsManager);
