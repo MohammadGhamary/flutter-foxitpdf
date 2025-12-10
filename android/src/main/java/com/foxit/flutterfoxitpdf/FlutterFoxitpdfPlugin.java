@@ -3,6 +3,8 @@ package com.foxit.flutterfoxitpdf;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
 import java.util.HashMap;
 import org.json.JSONObject;
@@ -154,12 +156,12 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   }
 
     private void registerActivityLifecycleCallbacks() {
-        application.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+        activity.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override
             public void onActivityDestroyed(@NonNull Activity activity) {
                 if (activity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
                     new Handler(Looper.getMainLooper()).post(() -> {
-                        methodChannel.invokeMethod("documentClosed", null);
+                        channel.invokeMethod("documentClosed", null);
                     });
 
                 }
