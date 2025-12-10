@@ -23,11 +23,13 @@ class FlutterFoxitpdf {
   static Future<void> openDocument({
     required String path,
     required String password,
+    required int bookId,
     required Map<String, dynamic> configurations}
       ) async {
     _channel.invokeMethod('openDocument', {
       'path': path,
       'password': password,
+      'bookId': bookId,
       'configurations': configurations,
     });
   }

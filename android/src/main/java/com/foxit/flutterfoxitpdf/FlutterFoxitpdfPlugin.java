@@ -96,6 +96,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     }
     String path = call.argument("path");
     String password = call.argument("password");
+    int bookId = call.argument("bookId");
     HashMap<String, Object> configurationsMap = call.argument("configurations");
     JSONObject configurations = new JSONObject(configurationsMap);
 
@@ -114,6 +115,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     bundle.putInt("type", 0);
     bundle.putString("path", path);
     bundle.putString("password", password);
+    bundle.putInt("bookId", bookId);
     bundle.putString("configurations", configurations.toString());
     intent.putExtras(bundle);
 
