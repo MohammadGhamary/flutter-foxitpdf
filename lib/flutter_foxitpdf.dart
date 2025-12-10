@@ -24,8 +24,18 @@ class FlutterFoxitpdf {
     required String path,
     required String password,
     required int bookId,
-    required Map<String, dynamic> configurations}
+    required Map<String, dynamic> configurations,
+    Function? onDocumentClosed}
       ) async {
+
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == "documentClosed") {
+        if(onDocumentClosed != null){
+          await onDocumentClosed();
+        }
+      }
+    });
+
     _channel.invokeMethod('openDocument', {
       'path': path,
       'password': password,
