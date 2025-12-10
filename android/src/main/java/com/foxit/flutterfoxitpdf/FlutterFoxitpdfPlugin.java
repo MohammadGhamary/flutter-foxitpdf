@@ -4,6 +4,10 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 
+import java.util.HashMap;
+import org.json.JSONObject;
+import org.json.JSONException;
+
 import com.foxit.sdk.common.Constants;
 import com.foxit.sdk.common.Library;
 

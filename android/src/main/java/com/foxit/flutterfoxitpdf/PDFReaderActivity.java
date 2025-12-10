@@ -60,7 +60,8 @@ public class PDFReaderActivity extends FragmentActivity {
         String configJson = bundle.getString("configurations");
 
         if (configJson != null) {
-            Config config = new Config(configJson);
+            InputStream stream = new ByteArrayInputStream(configJson.getBytes(StandardCharsets.UTF_8));
+            Config config = new Config(stream);
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
         }else {
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
