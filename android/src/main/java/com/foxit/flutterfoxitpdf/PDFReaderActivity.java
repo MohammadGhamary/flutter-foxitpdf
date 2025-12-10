@@ -57,7 +57,7 @@ public class PDFReaderActivity extends FragmentActivity {
         AppStorageManager.setOpenTreeRequestCode(REQUEST_OPEN_DOCUMENT_TREE);
 
         pdfViewCtrl = new PDFViewCtrl(getApplicationContext());
-        pdfViewerCtrl.setPageBinding(PDFViewCtrl.RIGHT_EDGE);
+        pdfViewCtrl.setPageBinding(PDFViewCtrl.RIGHT_EDGE);
 
         Bundle bundle = getIntent().getExtras();
         String configJson = bundle.getString("configurations");
