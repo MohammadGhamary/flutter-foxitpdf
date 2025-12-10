@@ -152,4 +152,35 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     result.success(true);
   }
 
+    private void registerActivityLifecycleCallbacks() {
+        application.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
+            @Override
+            public void onActivityDestroyed(@NonNull Activity activity) {
+                if (activity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        methodChannel.invokeMethod("documentClosed", null);
+                    });
+
+                }
+            }
+            @Override
+            public void onActivityCreated(Activity activity, Bundle bundle) {
+                if (activity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
+                    activity.getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
+                            WindowManager.LayoutParams.FLAG_SECURE);
+                }
+            }
+            @Override
+            public void onActivityStarted(Activity activity) {}
+            @Override
+            public void onActivityResumed(Activity activity) {}
+            @Override
+            public void onActivityPaused(Activity activity) {}
+            @Override
+            public void onActivityStopped(Activity activity) {}
+            @Override
+            public void onActivitySaveInstanceState(Activity activity, Bundle bundle) {}
+        });
+    }
+
 }
