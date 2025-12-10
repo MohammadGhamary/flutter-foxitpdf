@@ -11,6 +11,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.KeyEvent;
+import com.foxit.flutterfoxitpdf.R;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -26,6 +27,7 @@ import com.foxit.uiextensions.utils.AppStorageManager;
 import com.foxit.uiextensions.utils.AppTheme;
 import com.foxit.uiextensions.utils.SystemUiHelper;
 import com.foxit.uiextensions.utils.UIToast;
+import com.foxit.uiextensions.config.Config;
 
 public class PDFReaderActivity extends FragmentActivity {
     public static final int REQUEST_OPEN_DOCUMENT_TREE = 0xF001;
@@ -52,7 +54,11 @@ public class PDFReaderActivity extends FragmentActivity {
         AppStorageManager.setOpenTreeRequestCode(REQUEST_OPEN_DOCUMENT_TREE);
 
         pdfViewCtrl = new PDFViewCtrl(getApplicationContext());
-        uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
+
+        getApplicationContext().getResources().openRawResource(R.raw.uiextensions_config);
+        Config config = new Config(stream);
+
+        uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
         uiextensionsManager.setAttachedActivity(this);
         pdfViewCtrl.setUIExtensionsManager(uiextensionsManager);
         pdfViewCtrl.setAttachedActivity(this);
