@@ -79,6 +79,7 @@ public class PDFReaderActivity extends FragmentActivity {
         uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FORM_TAB);
         uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FILLSIGN_TAB);
         uiextensionsManager.getBarManager().removeItem(IBarsHandler.BarName.TOP_BAR, BaseBar.TB_Position.Position_RB, 1);
+        uiextensionsManager.setAutoSaveDoc(true);
 
         uiextensionsManager.setAttachedActivity(this);
         pdfViewCtrl.setUIExtensionsManager(uiextensionsManager);
