@@ -15,16 +15,12 @@ import com.foxit.flutterfoxitpdf.R;
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import javax.crypto.spec.SecretKeySpec;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.Cipher;
-import android.util.Base64;
-import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.List;
 import java.security.MessageDigest;
-import java.math.BigInteger;
-import org.bouncycastle.util.encoders.Hex;
-import java.util.Arrays;
+
+import android.util.Base64;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -48,6 +44,7 @@ import com.foxit.uiextensions.controls.toolbar.BaseBar;
 import com.foxit.uiextensions.controls.toolbar.IBarsHandler;
 
 public class PDFReaderActivity extends FragmentActivity {
+    private static final String TAG = "PDFReaderActivity";
     public static final int REQUEST_OPEN_DOCUMENT_TREE = 0xF001;
     public static final int REQUEST_SELECT_DEFAULT_FOLDER = 0xF002;
 
@@ -59,16 +56,6 @@ public class PDFReaderActivity extends FragmentActivity {
             Manifest.permission.WRITE_EXTERNAL_STORAGE
     };
 
-    private static final List<Integer> byttesps1 = Arrays.asList(
-            73, 77, 91, 39, 75, 74, 75, 39,
-            88, 67, 75, 91, 63, 88, 105, 108,
-            108, 97, 102, 111
-    );
-
-    private static final List<Integer> byttesps2 = Arrays.asList(
-            73, 77, 91
-    );
-
     public PDFViewCtrl pdfViewCtrl;
     private UIExtensionsManager uiextensionsManager;
 
@@ -77,7 +64,7 @@ public class PDFReaderActivity extends FragmentActivity {
         super.onCreate(savedInstanceState);
 
         ActManager.getInstance().setCurrentActivity(this);
-        SystemUiHelper.getInstance().setStatusBarColor(getWindow(), getResources().getColor(com.foxit.uiextensions.R.color.ui_color_top_bar_main));
+        SystemUiHelper.getInstance().setStatusBarColor(getWindow(), ContextCompat.getColor(this, com.foxit.uiextensions.R.color.ui_color_top_bar_main));
 
         AppStorageManager.setOpenTreeRequestCode(REQUEST_OPEN_DOCUMENT_TREE);
 
@@ -85,20 +72,26 @@ public class PDFReaderActivity extends FragmentActivity {
         pdfViewCtrl.setPageBinding(PDFViewCtrl.RIGHT_EDGE);
 
         Bundle bundle = getIntent().getExtras();
-        String configJson = bundle.getString("configurations");
+        String configJson = bundle != null ? bundle.getString("configurations") : null;
 
-        if (configJson != null) {
+        if (configJson != null && !configJson.isEmpty()) {
             InputStream stream = new ByteArrayInputStream(configJson.getBytes(StandardCharsets.UTF_8));
             Config config = new Config(stream);
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
-        }else {
+        } else {
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
         }
 
-        uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_REFLOW, false);
-        uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FORM_TAB);
-        uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FILLSIGN_TAB);
-        uiextensionsManager.getBarManager().removeItem(IBarsHandler.BarName.TOP_BAR, BaseBar.TB_Position.Position_RB, 1);
+        if (uiextensionsManager.getSettingWindow() != null) {
+            uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_REFLOW, false);
+        }
+        if (uiextensionsManager.getMainFrame() != null) {
+            uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FORM_TAB);
+            uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FILLSIGN_TAB);
+        }
+        if (uiextensionsManager.getBarManager() != null) {
+            uiextensionsManager.getBarManager().removeItem(IBarsHandler.BarName.TOP_BAR, BaseBar.TB_Position.Position_RB, 1);
+        }
         uiextensionsManager.setAutoSaveDoc(true);
 
         uiextensionsManager.setAttachedActivity(this);
@@ -139,7 +132,7 @@ public class PDFReaderActivity extends FragmentActivity {
             if (TextUtils.isEmpty(AppStorageManager.getInstance(this).getDefaultFolder())) {
                 AppFileUtil.checkCallDocumentTreeUriPermission(this, REQUEST_SELECT_DEFAULT_FOLDER,
                         Uri.parse(AppFileUtil.getExternalRootDocumentTreeUriPath()));
-                UIToast.getInstance(getApplicationContext()).show("Please select the default folder,you can create one when it not exists.");
+                UIToast.getInstance(getApplicationContext()).show("Please select the default folder, you can create one if it does not exist.");
             } else {
                 openDocument();
             }
@@ -150,6 +143,12 @@ public class PDFReaderActivity extends FragmentActivity {
 
     private void openDocument() {
         Bundle bundle = getIntent().getExtras();
+
+        if (bundle == null) {
+            Log.e(TAG, "Intent extras (Bundle) cannot be null!");
+            finish();
+            return;
+        }
 
         String path = bundle.getString("path", "");
         int bookId = bundle.getInt("bookId", 0);
@@ -180,90 +179,112 @@ public class PDFReaderActivity extends FragmentActivity {
             }
         }
 
+        Log.d(TAG, "finalPassword: " + finalPassword);
+
         int type = bundle.getInt("type", 0);
         if (type == 0) {
             uiextensionsManager.openDocument(path, finalPassword);
         } else {
             pdfViewCtrl.openDocFromUrl(path, finalPassword, null, null);
         }
-
     }
 
-    private String decrypt(String encrypted, String key, int bookId) {
-        try {
-            SecretKeySpec skeySpec = new SecretKeySpec(
-                    utf8ToHex(key, false).getBytes(),
-                    getOrgPs(bookId, byttesps2)
-            );
+    public static class PositionObfuscator {
+        private final String key;
+        private final boolean base64EncodeOutput;
 
-            IvParameterSpec ivSpec = new IvParameterSpec(
-                    utf8ToHex(key.substring(0, 4), true).getBytes()
-            );
-
-            Cipher ecipher = Cipher.getInstance(getOrgPs(bookId, byttesps1));
-            ecipher.init(Cipher.DECRYPT_MODE, skeySpec, ivSpec);
-
-            byte[] raw = Base64.decode(encrypted, Base64.DEFAULT);
-            byte[] originalBytes = ecipher.doFinal(raw);
-
-            return new String(originalBytes, StandardCharsets.UTF_8);
-
-        } catch (Exception ignored) {
+        public PositionObfuscator(String key, boolean base64EncodeOutput) {
+            this.key = key != null ? key : "";
+            this.base64EncodeOutput = base64EncodeOutput;
         }
-        return null;
-    }
 
-    private String getOrgPs(int bookId, List<Integer> list) {
-        StringBuilder ps = new StringBuilder();
-        for (int i : list) {
-            ps.append(getXorPs(bookId, i));
+        private int seedFromKeyAndLength(String key, int length) {
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                byte[] hash = digest.digest(key.getBytes(StandardCharsets.UTF_8));
+
+                int seed = ((hash[0] & 0xFF) << 24)
+                        | ((hash[1] & 0xFF) << 16)
+                        | ((hash[2] & 0xFF) << 8)
+                        | (hash[3] & 0xFF);
+
+                seed ^= (length * 0x9e3779b1);
+                return seed;
+            } catch (Exception e) {
+                throw new RuntimeException("SHA-256 algorithm not found", e);
+            }
         }
-        return ps.toString();
-    }
 
-    private String getXorPs(int bookId, int value) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(Integer.toString(bookId).getBytes());
-            String mdf = new BigInteger(1, digest).toString(4);
+        private int lcgNext(int state) {
+            return state * 1664525 + 1013904223;
+        }
 
-            // pad to length 4 just like Kotlin
-            while (mdf.length() < 4) {
-                mdf = "0" + mdf;
+        private int[] permutation(int length) {
+            int[] perm = new int[length];
+            for (int i = 0; i < length; i++) {
+                perm[i] = i;
             }
 
-            // original Kotlin logic: only returns XOR char
-            return new String(Character.toChars(value ^ 8));
-
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private String utf8ToHex(String str, boolean havePadding) {
-        StringBuilder hexResult = new StringBuilder();
-
-        for (String ch : str.split("")) {
-            if (ch.isEmpty()) continue;
-
-            byte[] utf8 = ch.getBytes(StandardCharsets.UTF_8);
-            byte[] hexBytes = Hex.encode(utf8);   // BouncyCastle Hex encoder
-
-            String res = new String(hexBytes);
-            if (res.length() == 2 && havePadding) {
-                res = "00" + res;
+            if (length <= 1) {
+                return perm;
             }
 
-            hexResult.append(res);
+            int state = seedFromKeyAndLength(this.key, length);
+
+            for (int i = length - 1; i >= 1; i--) {
+                state = lcgNext(state);
+                int j = (int) (((long) (state >>> 1)) % (i + 1));
+
+                int temp = perm[i];
+                perm[i] = perm[j];
+                perm[j] = temp;
+            }
+
+            return perm;
         }
-        return hexResult.toString();
+
+        private int[] toCodePoints(String input) {
+            return input.codePoints().toArray();
+        }
+
+        private String fromCodePoints(int[] cps) {
+            return new String(cps, 0, cps.length);
+        }
+
+        public String deobfuscate(String obfuscated) {
+            if (obfuscated == null || obfuscated.isEmpty()) {
+                return obfuscated;
+            }
+
+            String decoded;
+            if (this.base64EncodeOutput) {
+                try {
+                    byte[] bytes = Base64.decode(obfuscated, Base64.DEFAULT);
+                    decoded = new String(bytes, StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    decoded = obfuscated;
+                }
+            } else {
+                decoded = obfuscated;
+            }
+
+            int[] cps = toCodePoints(decoded);
+            int[] perm = permutation(cps.length);
+
+            int[] original = new int[cps.length];
+            for (int dest = 0; dest < perm.length; dest++) {
+                original[perm[dest]] = cps[dest];
+            }
+
+            return fromCodePoints(original);
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_EXTERNAL_STORAGE) {
-            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 selectDefaultFolderOrNot();
             } else {
                 UIToast.getInstance(getApplicationContext()).show("Permission Denied");
@@ -307,15 +328,8 @@ public class PDFReaderActivity extends FragmentActivity {
     protected void onDestroy() {
         if (uiextensionsManager != null) {
             uiextensionsManager.onDestroy(this);
-            freeMemory();
         }
         super.onDestroy();
-    }
-
-    private void freeMemory() {
-        System.runFinalization();
-        Runtime.getRuntime().gc();
-        System.gc();
     }
 
     @SuppressLint("WrongConstant")
@@ -346,12 +360,13 @@ public class PDFReaderActivity extends FragmentActivity {
                 finish();
             }
         }
-        if (uiextensionsManager != null)
+        if (uiextensionsManager != null) {
             uiextensionsManager.handleActivityResult(this, requestCode, resultCode, data);
+        }
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (uiextensionsManager == null) return;
         uiextensionsManager.onConfigurationChanged(this, newConfig);
@@ -359,9 +374,9 @@ public class PDFReaderActivity extends FragmentActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (uiextensionsManager != null && uiextensionsManager.onKeyDown(this, keyCode, event))
+        if (uiextensionsManager != null && uiextensionsManager.onKeyDown(this, keyCode, event)) {
             return true;
+        }
         return super.onKeyDown(keyCode, event);
     }
-
 }
