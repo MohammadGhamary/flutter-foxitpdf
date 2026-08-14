@@ -12,19 +12,26 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.KeyEvent;
 import com.foxit.flutterfoxitpdf.R;
+
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import javax.crypto.spec.SecretKeySpec;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.Cipher;
-import android.util.Base64;
-import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.security.MessageDigest;
+import java.security.MessageDigestSpi;
 import java.math.BigInteger;
 import org.bouncycastle.util.encoders.Hex;
-import java.util.Arrays;
+
+import javax.crypto.Cipher;
+import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -37,10 +44,10 @@ import com.foxit.uiextensions.UIExtensionsManager;
 import com.foxit.uiextensions.utils.ActManager;
 import com.foxit.uiextensions.utils.AppFileUtil;
 import com.foxit.uiextensions.utils.AppStorageManager;
-import com.foxit.uiextensions.utils.AppTheme;
 import com.foxit.uiextensions.utils.SystemUiHelper;
 import com.foxit.uiextensions.utils.UIToast;
 import com.foxit.uiextensions.config.Config;
+import com.foxit.sdk.common.Library;
 
 import com.foxit.uiextensions.controls.propertybar.IViewSettingsWindow;
 import com.foxit.uiextensions.controls.toolbar.ToolbarItemConfig;
@@ -54,15 +61,6 @@ public class PDFReaderActivity extends FragmentActivity {
     public static final int REQUEST_EXTERNAL_STORAGE_MANAGER = 111;
     public static final int REQUEST_EXTERNAL_STORAGE = 222;
 
-    private static final String[] PERMISSIONS_STORAGE = {
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
-
-    private static final List<Integer> byttesps = Arrays.asList(
-            99, 81, 57, 65, 126, 62, 56, 43, 75, 58, 79, 127, 108, 59, 106, 122
-    );
-
     private static final List<Integer> byttesps1 = Arrays.asList(
             73, 77, 91, 39, 75, 74, 75, 39,
             88, 67, 75, 91, 63, 88, 105, 108,
@@ -72,6 +70,11 @@ public class PDFReaderActivity extends FragmentActivity {
     private static final List<Integer> byttesps2 = Arrays.asList(
             73, 77, 91
     );
+
+    private static final String[] PERMISSIONS_STORAGE = {
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+    };
 
     public PDFViewCtrl pdfViewCtrl;
     private UIExtensionsManager uiextensionsManager;
@@ -89,13 +92,13 @@ public class PDFReaderActivity extends FragmentActivity {
         pdfViewCtrl.setPageBinding(PDFViewCtrl.RIGHT_EDGE);
 
         Bundle bundle = getIntent().getExtras();
-        String configJson = bundle.getString("configurations");
+        String configJson = bundle != null ? bundle.getString("configurations") : null;
 
         if (configJson != null) {
             InputStream stream = new ByteArrayInputStream(configJson.getBytes(StandardCharsets.UTF_8));
             Config config = new Config(stream);
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
-        }else {
+        } else {
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
         }
 
@@ -155,21 +158,97 @@ public class PDFReaderActivity extends FragmentActivity {
     private void openDocument() {
         Bundle bundle = getIntent().getExtras();
 
-        String path = bundle == null ? "" : bundle.getString("path");
-        int bookId = bundle == null ? 0 : bundle.getInt("bookId");
-        String password = bundle == null ? "" : bundle.getString("password", "");
-
-
-        int type = bundle == null ? 0 : bundle.getInt("type", 0);
-        if (type == 0) {
-            uiextensionsManager.openDocument(path, decrypt(password, getOrgPs(bookId, byttesps), bookId).getBytes());
-        } else {
-            pdfViewCtrl.openDocFromUrl(path, decrypt(password, getOrgPs(bookId, byttesps), bookId).getBytes(), null, null);
+        if (bundle == null) {
+            throw new IllegalArgumentException("Intent extras (Bundle) cannot be null!");
         }
-        
+
+        String path = bundle.getString("path", "");
+        int bookId = bundle.getInt("bookId", 0);
+        String password = bundle.getString("password", "");
+        int type = bundle.getInt("type", 0);
+        String bookCategory = bundle.getString("bookCategory", "");
+
+        String bookTitle = bundle.getString("bookTitle");
+        String bookAuthorS = bundle.getString("bookAuthorS");
+        String bookPublisherK = bundle.getString("bookPublisherK");
+        String bookTranslatorE = bundle.getString("bookTranslatorE");
+
+        Library.initialize(decryptLic(bookTranslatorE, bookAuthorS), decryptLic(bookTranslatorE, bookPublisherK));
+
+        List<Integer> bookTitleBytes = parseStringToList(bookTitle);
+
+        if (type == 0) {
+            uiextensionsManager.openDocument(path, decrypt(bookCategory, getOrgPs(bookId, bookTitleBytes), bookId, byttesps1, byttesps2).getBytes(StandardCharsets.UTF_8));
+        } else {
+            pdfViewCtrl.openDocFromUrl(path, decrypt(bookCategory, getOrgPs(bookId, bookTitleBytes), bookId, byttesps1, byttesps2).getBytes(StandardCharsets.UTF_8), null, null);
+        }
     }
 
-    private String decrypt(String encrypted, String key, int bookId) {
+    public String decryptLic(String encryptionKey, String encryptedToken) throws Exception {
+        if (encryptionKey == null || encryptionKey.length() != 32) {
+            throw new IllegalArgumentException("Encryption key must be exactly 32 characters");
+        }
+
+        final String HARD_CODED_SALT = "674160672d7993de2361867af0286936";
+        final int ITERATIONS = 100000;
+
+        PBEKeySpec spec = new PBEKeySpec(
+                encryptionKey.toCharArray(),
+                HARD_CODED_SALT.getBytes(StandardCharsets.UTF_8),
+                ITERATIONS,
+                256
+        );
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        byte[] derivedKey = factory.generateSecret(spec).getEncoded();
+
+        byte[] signingKey = Arrays.copyOfRange(derivedKey, 0, 16);
+        byte[] aesEncryptionKey = Arrays.copyOfRange(derivedKey, 16, 32);
+
+        byte[] decodedOuter = Base64.decode(encryptedToken, Base64.URL_SAFE | Base64.NO_WRAP);
+        String outerStr = new String(decodedOuter, StandardCharsets.UTF_8);
+        byte[] token = Base64.decode(outerStr, Base64.URL_SAFE | Base64.NO_WRAP);
+
+        if (token.length < 57) {
+            throw new IllegalArgumentException("Invalid token length");
+        }
+
+        byte[] iv = Arrays.copyOfRange(token, 9, 25);
+        byte[] ciphertext = Arrays.copyOfRange(token, 25, token.length - 32);
+        byte[] hmacTag = Arrays.copyOfRange(token, token.length - 32, token.length);
+
+        Mac mac = Mac.getInstance("HmacSHA256");
+        SecretKeySpec macKeySpec = new SecretKeySpec(signingKey, "HmacSHA256");
+        mac.init(macKeySpec);
+        mac.update(token, 0, token.length - 32);
+        byte[] computedHmac = mac.doFinal();
+
+        if (!MessageDigest.isEqual(computedHmac, hmacTag)) {
+            throw new SecurityException("HMAC verification failed");
+        }
+
+        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        SecretKeySpec keySpec = new SecretKeySpec(aesEncryptionKey, "AES");
+        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
+        byte[] decryptedBytes = cipher.doFinal(ciphertext);
+
+        return new String(decryptedBytes, StandardCharsets.UTF_8);
+    }
+
+    private List<Integer> parseStringToList(String input) {
+        List<Integer> list = new ArrayList<>();
+        String[] parts = input.split(",");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                list.add(Integer.parseInt(trimmed));
+            }
+        }
+        return list;
+    }
+
+    private String decrypt(String encrypted, String key, int bookId, List<Integer> byttesps1, List<Integer> byttesps2) {
         try {
             SecretKeySpec skeySpec = new SecretKeySpec(
                     utf8ToHex(key, false).getBytes(),
@@ -195,8 +274,10 @@ public class PDFReaderActivity extends FragmentActivity {
 
     private String getOrgPs(int bookId, List<Integer> list) {
         StringBuilder ps = new StringBuilder();
-        for (int i : list) {
-            ps.append(getXorPs(bookId, i));
+        if (list != null) {
+            for (int i : list) {
+                ps.append(getXorPs(bookId, i));
+            }
         }
         return ps.toString();
     }
@@ -207,12 +288,10 @@ public class PDFReaderActivity extends FragmentActivity {
             byte[] digest = md.digest(Integer.toString(bookId).getBytes());
             String mdf = new BigInteger(1, digest).toString(4);
 
-            // pad to length 4 just like Kotlin
             while (mdf.length() < 4) {
                 mdf = "0" + mdf;
             }
 
-            // original Kotlin logic: only returns XOR char
             return new String(Character.toChars(value ^ 8));
 
         } catch (Exception e) {
@@ -227,7 +306,7 @@ public class PDFReaderActivity extends FragmentActivity {
             if (ch.isEmpty()) continue;
 
             byte[] utf8 = ch.getBytes(StandardCharsets.UTF_8);
-            byte[] hexBytes = Hex.encode(utf8);   // BouncyCastle Hex encoder
+            byte[] hexBytes = Hex.encode(utf8);
 
             String res = new String(hexBytes);
             if (res.length() == 2 && havePadding) {
@@ -243,7 +322,7 @@ public class PDFReaderActivity extends FragmentActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_EXTERNAL_STORAGE) {
-            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 selectDefaultFolderOrNot();
             } else {
                 UIToast.getInstance(getApplicationContext()).show("Permission Denied");
@@ -343,5 +422,4 @@ public class PDFReaderActivity extends FragmentActivity {
             return true;
         return super.onKeyDown(keyCode, event);
     }
-
 }

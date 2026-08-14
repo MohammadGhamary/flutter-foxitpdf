@@ -12,18 +12,11 @@ class FlutterFoxitpdf {
     return version;
   }
 
-  static Future<int> initialize({required String sn, required String key}) async {
-    final int error = await _channel.invokeMethod("initialize", {
-      "sn": sn,
-      "key": key,
-    });
-    return error;
-  }
-
   static Future<void> openDocument({
     required String path,
     required String password,
     required int bookId,
+    required String bookTitle,
     required Map<String, dynamic> configurations,
     Function? onDocumentClosed}
       ) async {
@@ -40,6 +33,7 @@ class FlutterFoxitpdf {
       'path': path,
       'password': password,
       'bookId': bookId,
+      'bookTitle': bookTitle,
       'configurations': configurations,
     });
   }

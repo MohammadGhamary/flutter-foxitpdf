@@ -91,6 +91,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   private void initialize(MethodCall call, Result result) {
     String sn = call.argument("sn");
     String key = call.argument("key");
+
     errorCode = Library.initialize(sn, key);
     result.success(errorCode);
   }
@@ -103,6 +104,11 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     String path = call.argument("path");
     String password = call.argument("password");
     int bookId = call.argument("bookId");
+    String bookTitle = call.argument("bookTitle");
+    String bookCategory = call.argument("bookCategory");
+    String bookAuthorS = call.argument("bookAuthorS");
+    String bookPublisherK = call.argument("bookPublisherK");
+    String bookTranslatorE = call.argument("bookTranslatorE");
     HashMap<String, Object> configurationsMap = call.argument("configurations");
     JSONObject configurations = new JSONObject(configurationsMap);
 
@@ -122,6 +128,11 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     bundle.putString("path", path);
     bundle.putString("password", password);
     bundle.putInt("bookId", bookId);
+    bundle.putString("bookTitle", bookTitle);
+    bundle.putString("bookCategory", bookCategory);
+    bundle.putString("bookAuthorS", bookAuthorS);
+    bundle.putString("bookPublisherK", bookPublisherK);
+    bundle.putString("bookTranslatorE", bookTranslatorE);
     bundle.putString("configurations", configurations.toString());
     intent.putExtras(bundle);
 
