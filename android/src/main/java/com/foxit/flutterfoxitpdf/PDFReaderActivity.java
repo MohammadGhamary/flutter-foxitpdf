@@ -150,7 +150,7 @@ public class PDFReaderActivity extends FragmentActivity {
             return;
         }
 
-        String path = bundle.getString("path", "");
+        String pathE = bundle.getString("path", "");
         int bookId = bundle.getInt("bookId", 0);
         String bookCategory = bundle.getString("bookCategory", "");
 
@@ -167,15 +167,11 @@ public class PDFReaderActivity extends FragmentActivity {
             decryptedObfuscatorKey = "";
         }
 
+        String path = ObfuscationUtil.decrypt(pathE, bookTitle, bookId);
+
         PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, /* base64EncodeOutput = */ true);
 
         String decryptedCategory = ObfuscationUtil.decrypt(bookCategory, bookTitle, bookId);
-
-        Log.d(TAG, "decryptedObfuscatorKey: " + decryptedObfuscatorKey);
-        Log.d(TAG, "decryptedCategory: " + decryptedCategory);
-        Log.d(TAG, "bookCategory: " + bookCategory);
-
-        Log.d(TAG, "finalPassword: " + obfuscator.deobfuscate(decryptedCategory));
 
         int type = bundle.getInt("type", 0);
         if (type == 0) {
