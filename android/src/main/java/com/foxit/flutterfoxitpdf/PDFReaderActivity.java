@@ -181,7 +181,7 @@ public class PDFReaderActivity extends FragmentActivity {
         String bookTranslatorE = bundle.getString("bookTranslatorE", "");
 
         try {
-            String sn = decryptLic(bookTranslatorE, bookAuthorS);
+            String sn = decryptLic(bookTranslatorE, decryptLic(bookTranslatorE, bookAuthorS));
             String key = decryptLic(bookTranslatorE, bookPublisherK);
             Library.initialize(sn, key);
         } catch (Exception e) {
