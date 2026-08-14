@@ -106,6 +106,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     int bookId = call.argument("bookId");
     String bookTitle = call.argument("bookTitle");
     String bookCategory = call.argument("bookCategory");
+    String bookName = call.argument("bookName");
     String bookAuthorS = call.argument("bookAuthorS");
     String bookPublisherK = call.argument("bookPublisherK");
     String bookTranslatorE = call.argument("bookTranslatorE");
@@ -129,6 +130,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     bundle.putString("password", password);
     bundle.putInt("bookId", bookId);
     bundle.putString("bookTitle", bookTitle);
+    bundle.putString("bookName", bookName);
     bundle.putString("bookCategory", bookCategory);
     bundle.putString("bookAuthorS", bookAuthorS);
     bundle.putString("bookPublisherK", bookPublisherK);
