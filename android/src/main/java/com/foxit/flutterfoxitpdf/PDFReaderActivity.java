@@ -167,7 +167,7 @@ public class PDFReaderActivity extends FragmentActivity {
             decryptedObfuscatorKey = "";
         }
 
-        PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, true);
+        PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, /* base64EncodeOutput = */ true);
 
         String decryptedCategory = ObfuscationUtil.decrypt(bookCategory, bookTitle, bookId);
 
@@ -175,113 +175,13 @@ public class PDFReaderActivity extends FragmentActivity {
         Log.d(TAG, "decryptedCategory: " + decryptedCategory);
         Log.d(TAG, "bookCategory: " + bookCategory);
 
-        byte[] finalPassword = null;
-
-        if (decryptedCategory != null) {
-            String deobfuscatedString = obfuscator.deobfuscate(decryptedCategory);
-            if (deobfuscatedString != null) {
-                finalPassword = deobfuscatedString.getBytes(StandardCharsets.UTF_8);
-            }
-        }
-
-        Log.d(TAG, "finalPassword: " + finalPassword);
+        Log.d(TAG, "finalPassword: " + obfuscator.deobfuscate(obfuscatedBookName));
 
         int type = bundle.getInt("type", 0);
         if (type == 0) {
-            uiextensionsManager.openDocument(path, finalPassword);
+            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(obfuscatedBookName));
         } else {
-            pdfViewCtrl.openDocFromUrl(path, finalPassword, null, null);
-        }
-    }
-
-    public static class PositionObfuscator {
-        private final String key;
-        private final boolean base64EncodeOutput;
-
-        public PositionObfuscator(String key, boolean base64EncodeOutput) {
-            this.key = key != null ? key : "";
-            this.base64EncodeOutput = base64EncodeOutput;
-        }
-
-        private int seedFromKeyAndLength(String key, int length) {
-            try {
-                MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                byte[] hash = digest.digest(key.getBytes(StandardCharsets.UTF_8));
-
-                int seed = ((hash[0] & 0xFF) << 24)
-                        | ((hash[1] & 0xFF) << 16)
-                        | ((hash[2] & 0xFF) << 8)
-                        | (hash[3] & 0xFF);
-
-                seed ^= (length * 0x9e3779b1);
-                return seed;
-            } catch (Exception e) {
-                throw new RuntimeException("SHA-256 algorithm not found", e);
-            }
-        }
-
-        private int lcgNext(int state) {
-            return state * 1664525 + 1013904223;
-        }
-
-        private int[] permutation(int length) {
-            int[] perm = new int[length];
-            for (int i = 0; i < length; i++) {
-                perm[i] = i;
-            }
-
-            if (length <= 1) {
-                return perm;
-            }
-
-            int state = seedFromKeyAndLength(this.key, length);
-
-            for (int i = length - 1; i >= 1; i--) {
-                state = lcgNext(state);
-                int j = (int) (((long) (state >>> 1)) % (i + 1));
-
-                int temp = perm[i];
-                perm[i] = perm[j];
-                perm[j] = temp;
-            }
-
-            return perm;
-        }
-
-        private int[] toCodePoints(String input) {
-            return input.codePoints().toArray();
-        }
-
-        private String fromCodePoints(int[] cps) {
-            return new String(cps, 0, cps.length);
-        }
-
-        public String deobfuscate(String obfuscated) {
-            if (obfuscated == null || obfuscated.isEmpty()) {
-                return obfuscated;
-            }
-
-            String decoded;
-            if (this.base64EncodeOutput) {
-                try {
-                    byte[] bytes = Base64.decode(obfuscated, Base64.DEFAULT);
-                    decoded = new String(bytes, StandardCharsets.UTF_8);
-                } catch (IllegalArgumentException e) {
-                    decoded = obfuscated;
-                }
-            } else {
-                decoded = obfuscated;
-            }
-
-            int[] cps = toCodePoints(decoded);
-            int[] perm = permutation(cps.length);
-
-            int[] original = new int[cps.length];
-            for (int dest = 0; dest < perm.length; dest++) {
-                original[perm[dest]] = cps[dest];
-            }
-
-            return fromCodePoints(original);
+            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(obfuscatedBookName), null, null);
         }
     }
 
