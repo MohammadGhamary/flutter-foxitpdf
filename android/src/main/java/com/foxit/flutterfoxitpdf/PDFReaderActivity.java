@@ -175,7 +175,7 @@ public class PDFReaderActivity extends FragmentActivity {
         Log.d(TAG, "decryptedCategory: " + decryptedCategory);
         Log.d(TAG, "bookCategory: " + bookCategory);
 
-        Log.d(TAG, "finalPassword: " + obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8));
+        Log.d(TAG, "finalPassword: " + obfuscator.deobfuscate(decryptedCategory));
 
         int type = bundle.getInt("type", 0);
         if (type == 0) {
