@@ -23,10 +23,7 @@ import java.math.BigInteger;
 import org.bouncycastle.util.encoders.Hex;
 
 import javax.crypto.Cipher;
-import javax.crypto.Mac;
-import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import android.util.Base64;
@@ -46,7 +43,6 @@ import com.foxit.uiextensions.utils.AppStorageManager;
 import com.foxit.uiextensions.utils.SystemUiHelper;
 import com.foxit.uiextensions.utils.UIToast;
 import com.foxit.uiextensions.config.Config;
-import com.foxit.sdk.common.Library;
 
 import com.foxit.uiextensions.controls.propertybar.IViewSettingsWindow;
 import com.foxit.uiextensions.controls.toolbar.ToolbarItemConfig;
@@ -176,24 +172,11 @@ public class PDFReaderActivity extends FragmentActivity {
 
         String bookTitle = bundle.getString("bookTitle", "");
         String bookName = bundle.getString("bookName", "");
-        String bookAuthorS = bundle.getString("bookAuthorS", "");
-        String bookPublisherK = bundle.getString("bookPublisherK", "");
-        String bookTranslatorE = bundle.getString("bookTranslatorE", "");
 
-        try {
-
-            Log.d(TAG, "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss");
-
-            String sn = decryptLic(bookTranslatorE, decryptLic(bookTranslatorE, bookAuthorS));
-            String key = decryptLic(bookTranslatorE, bookPublisherK);
-
-            Log.d(TAG, "Decrypted SN: " + sn);
-            Log.d(TAG, "Decrypted Key: " + key);
-
-            Library.initialize(sn, key);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to initialize Foxit Library with decrypted credentials", e);
-        }
+        // License decryption + Library.initialize() now happen in
+        // FlutterFoxitpdfPlugin.openDocument(), before this Activity is
+        // started, since PDFViewCtrl/UIExtensionsManager (created in
+        // onCreate) require the library to already be initialized.
 
         String decryptedObfuscatorKey = decrypt(bookName, bookTitle, bookId, byttesps1, byttesps2);
         if (decryptedObfuscatorKey == null) {
@@ -218,61 +201,6 @@ public class PDFReaderActivity extends FragmentActivity {
         } else {
             pdfViewCtrl.openDocFromUrl(path, finalPassword, null, null);
         }
-    }
-
-    public String decryptLic(String encryptionKey, String encryptedToken) throws Exception {
-        if (encryptionKey == null || encryptionKey.length() != 32) {
-            throw new IllegalArgumentException("Encryption key must be exactly 32 characters");
-        }
-        if (encryptedToken == null || encryptedToken.isEmpty()) {
-            throw new IllegalArgumentException("Encrypted token cannot be empty");
-        }
-
-        final String HARD_CODED_SALT = "fb0dae6afae2a731bf1398759c4e6567";
-        final int ITERATIONS = 100000;
-
-        PBEKeySpec spec = new PBEKeySpec(
-                encryptionKey.toCharArray(),
-                HARD_CODED_SALT.getBytes(StandardCharsets.UTF_8),
-                ITERATIONS,
-                256
-        );
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        byte[] derivedKey = factory.generateSecret(spec).getEncoded();
-
-        byte[] signingKey = Arrays.copyOfRange(derivedKey, 0, 16);
-        byte[] aesEncryptionKey = Arrays.copyOfRange(derivedKey, 16, 32);
-
-        byte[] decodedOuter = Base64.decode(encryptedToken, Base64.URL_SAFE | Base64.NO_WRAP);
-        String outerStr = new String(decodedOuter, StandardCharsets.UTF_8);
-        byte[] token = Base64.decode(outerStr, Base64.URL_SAFE | Base64.NO_WRAP);
-
-        if (token.length < 57) {
-            throw new IllegalArgumentException("Invalid token length");
-        }
-
-        byte[] iv = Arrays.copyOfRange(token, 9, 25);
-        byte[] ciphertext = Arrays.copyOfRange(token, 25, token.length - 32);
-        byte[] hmacTag = Arrays.copyOfRange(token, token.length - 32, token.length);
-
-        Mac mac = Mac.getInstance("HmacSHA256");
-        SecretKeySpec macKeySpec = new SecretKeySpec(signingKey, "HmacSHA256");
-        mac.init(macKeySpec);
-        mac.update(token, 0, token.length - 32);
-        byte[] computedHmac = mac.doFinal();
-
-        if (!MessageDigest.isEqual(computedHmac, hmacTag)) {
-            throw new SecurityException("HMAC verification failed");
-        }
-
-        Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        SecretKeySpec keySpec = new SecretKeySpec(aesEncryptionKey, "AES");
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
-
-        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
-        byte[] decryptedBytes = cipher.doFinal(ciphertext);
-
-        return new String(decryptedBytes, StandardCharsets.UTF_8);
     }
 
     private String decrypt(String encrypted, String key, int bookId, List<Integer> byttesps1, List<Integer> byttesps2) {
