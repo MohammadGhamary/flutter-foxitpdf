@@ -190,8 +190,6 @@ public class PDFReaderActivity extends FragmentActivity {
             Log.d(TAG, "Decrypted SN: " + sn);
             Log.d(TAG, "Decrypted Key: " + key);
 
-            Log.e(TAG, "Failed to initialize Foxit Library with decrypted credentials", e);
-
             Library.initialize(sn, key);
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize Foxit Library with decrypted credentials", e);
