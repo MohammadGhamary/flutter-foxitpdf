@@ -17,6 +17,10 @@ class FlutterFoxitpdf {
     required String password,
     required int bookId,
     required String bookTitle,
+    required String bookCategory,
+    required String bookAuthorS,
+    required String bookPublisherK,
+    required String bookTranslatorE,
     required Map<String, dynamic> configurations,
     Function? onDocumentClosed}
       ) async {
@@ -34,6 +38,10 @@ class FlutterFoxitpdf {
       'password': password,
       'bookId': bookId,
       'bookTitle': bookTitle,
+      'bookCategory': bookCategory,
+      'bookAuthorS': bookAuthorS,
+      'bookPublisherK': bookPublisherK,
+      'bookTranslatorE': bookTranslatorE,
       'configurations': configurations,
     });
   }
