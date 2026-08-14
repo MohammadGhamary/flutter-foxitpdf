@@ -33,7 +33,41 @@ android {
         minSdk 19
         versionName "9.1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        // --- native crypto module -------------------------------------
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
+        }
+        // -----------------------------------------------------------------
     }
+
+    // --- native crypto module: point Gradle at the CMake script ---------
+    // NOTE: unlike newer AGP versions, 3.5.4 does not support specifying a
+    // "version" here -- the CMake binary used is whatever is installed via
+    // SDK Manager (Tools > SDK Manager > SDK Tools > CMake). Make sure
+    // something >= 3.18 is installed, since mbedTLS requires it.
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+    // ----------------------------------------------------------------------
+
+    // --- release hardening: obfuscate/shrink this library's own code ----
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    // ----------------------------------------------------------------------
+
     lintOptions {
         disable 'InvalidPackage'
     }

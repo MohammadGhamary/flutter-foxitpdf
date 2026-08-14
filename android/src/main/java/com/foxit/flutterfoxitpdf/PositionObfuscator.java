@@ -5,13 +5,6 @@ import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
-/**
- * Java port of the Rust PositionObfuscator. Reverses a key-seeded
- * permutation of Unicode code points (deobfuscation only — this class does
- * not implement the forward "obfuscate" direction, matching the Rust source
- * it was ported from).
- */
 public class PositionObfuscator {
 
     private final String key;
@@ -36,13 +29,11 @@ public class PositionObfuscator {
                 | ((hash[2] & 0xFF) << 8)
                 | (hash[3] & 0xFF);
 
-        // int multiplication wraps mod 2^32 just like Rust's wrapping_mul
         seed ^= length * 0x9e3779b1;
         return seed;
     }
 
     private int lcgNext(int state) {
-        // wraps mod 2^32 automatically, same as Rust's wrapping_mul/wrapping_add
         return state * 1_664_525 + 1_013_904_223;
     }
 
@@ -59,7 +50,6 @@ public class PositionObfuscator {
 
         for (int i = length - 1; i >= 1; i--) {
             state = lcgNext(state);
-            // >>> is required here: Rust's u32 >> 1 is a logical (unsigned) shift
             int j = (state >>> 1) % (i + 1);
             int tmp = perm[i];
             perm[i] = perm[j];

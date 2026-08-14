@@ -157,11 +157,6 @@ public class PDFReaderActivity extends FragmentActivity {
         String bookTitle = bundle.getString("bookTitle", "");
         String bookName = bundle.getString("bookName", "");
 
-        // License decryption + Library.initialize() now happen in
-        // FlutterFoxitpdfPlugin.openDocument(), before this Activity is
-        // started, since PDFViewCtrl/UIExtensionsManager (created in
-        // onCreate) require the library to already be initialized.
-
         String decryptedObfuscatorKey = ObfuscationUtil.decrypt(bookName, bookTitle, bookId);
         if (decryptedObfuscatorKey == null) {
             decryptedObfuscatorKey = "";
