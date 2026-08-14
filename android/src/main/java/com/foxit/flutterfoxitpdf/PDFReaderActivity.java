@@ -179,9 +179,9 @@ public class PDFReaderActivity extends FragmentActivity {
 
         int type = bundle.getInt("type", 0);
         if (type == 0) {
-            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8));
+            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(decryptedCategory).getBytes());
         } else {
-            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8), null, null);
+            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(decryptedCategory).getBytes(), null, null);
         }
     }
 
