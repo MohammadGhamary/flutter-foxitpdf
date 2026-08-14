@@ -32,10 +32,10 @@ import androidx.annotation.NonNull;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
-import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.plugin.common.MethodCall;
 
 
 /** FlutterFoxitpdfPlugin */
@@ -199,10 +199,17 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   }
 
   /**
-   * Decrypts a license fragment (SN or key) using AES-CBC with an
-   * HMAC-verified, PBKDF2-derived key. Moved here from PDFReaderActivity so
-   * the license can be decrypted and the library initialized before the
-   * Activity (and its PDFViewCtrl/UIExtensionsManager) is ever created.
+   * Decrypts a license fragment (SN or key) using AES-128-CBC with an
+   * HMAC-SHA256-verified, PBKDF2-derived key. Moved here from
+   * PDFReaderActivity so the license can be decrypted and the library
+   * initialized before the Activity (and its PDFViewCtrl/UIExtensionsManager)
+   * is ever created.
+   *
+   * Token layout after the double base64url decode:
+   *   [0..9)            header / unused prefix
+   *   [9..25)            16-byte AES IV
+   *   [25..len-32)        ciphertext
+   *   [len-32..len)       32-byte HMAC-SHA256 tag over token[0..len-32)
    */
   private String decryptLic(String encryptionKey, String encryptedToken) throws Exception {
     if (encryptionKey == null || encryptionKey.length() != 32) {
@@ -213,23 +220,25 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     }
 
     final String HARD_CODED_SALT = "fb0dae6afae2a731bf1398759c4e6567";
-    final int ITERATIONS = 100000;
+    final int ITERATIONS = 100_000;
+    final int DERIVED_KEY_LEN_BITS = 32 * 8; // 32 bytes total: 16 (signing) + 16 (AES)
 
+    // 1. Derive key material with PBKDF2-HMAC-SHA256
+    SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
     PBEKeySpec spec = new PBEKeySpec(
             encryptionKey.toCharArray(),
             HARD_CODED_SALT.getBytes(StandardCharsets.UTF_8),
             ITERATIONS,
-            256
+            DERIVED_KEY_LEN_BITS
     );
-    SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-    byte[] derivedKey = factory.generateSecret(spec).getEncoded();
+    byte[] derivedKey = skf.generateSecret(spec).getEncoded();
 
     byte[] signingKey = Arrays.copyOfRange(derivedKey, 0, 16);
-    byte[] aesEncryptionKey = Arrays.copyOfRange(derivedKey, 16, 32);
+    byte[] aesKey = Arrays.copyOfRange(derivedKey, 16, 32);
 
+    // 2. Decode base64url twice (outer, then inner)
     byte[] decodedOuter = Base64.decode(encryptedToken, Base64.URL_SAFE | Base64.NO_WRAP);
-    String outerStr = new String(decodedOuter, StandardCharsets.UTF_8);
-    byte[] token = Base64.decode(outerStr, Base64.URL_SAFE | Base64.NO_WRAP);
+    byte[] token = Base64.decode(decodedOuter, Base64.URL_SAFE | Base64.NO_WRAP);
 
     if (token.length < 57) {
       throw new IllegalArgumentException("Invalid token length");
@@ -239,24 +248,25 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     byte[] ciphertext = Arrays.copyOfRange(token, 25, token.length - 32);
     byte[] hmacTag = Arrays.copyOfRange(token, token.length - 32, token.length);
 
+    // 3. Verify HMAC-SHA256 over everything except the tag itself
     Mac mac = Mac.getInstance("HmacSHA256");
-    SecretKeySpec macKeySpec = new SecretKeySpec(signingKey, "HmacSHA256");
-    mac.init(macKeySpec);
+    mac.init(new SecretKeySpec(signingKey, "HmacSHA256"));
     mac.update(token, 0, token.length - 32);
-    byte[] computedHmac = mac.doFinal();
+    byte[] computedTag = mac.doFinal();
 
-    if (!MessageDigest.isEqual(computedHmac, hmacTag)) {
+    if (!MessageDigest.isEqual(computedTag, hmacTag)) {
       throw new SecurityException("HMAC verification failed");
     }
 
+    // 4. AES-128-CBC decrypt with PKCS7 padding (Java calls it PKCS5Padding
+    // for historical reasons, but for AES's 16-byte block it is PKCS7)
     Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-    SecretKeySpec keySpec = new SecretKeySpec(aesEncryptionKey, "AES");
-    IvParameterSpec ivSpec = new IvParameterSpec(iv);
+    cipher.init(Cipher.DECRYPT_MODE,
+            new SecretKeySpec(aesKey, "AES"),
+            new IvParameterSpec(iv));
+    byte[] decrypted = cipher.doFinal(ciphertext);
 
-    cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
-    byte[] decryptedBytes = cipher.doFinal(ciphertext);
-
-    return new String(decryptedBytes, StandardCharsets.UTF_8);
+    return new String(decrypted, StandardCharsets.UTF_8);
   }
 
   private void openDocFromUrl(MethodCall call, Result result) {
