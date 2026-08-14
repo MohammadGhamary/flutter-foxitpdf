@@ -155,6 +155,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
 
       Log.d(TAG, "translatorKey: " + translatorKey);
       Log.d(TAG, "bookAuthorSD: " + bookAuthorSD);
+      Log.d(TAG, "bookName: " + bookName);
       Log.d(TAG, "bookNameD: " + bookNameD);
       Log.d(TAG, "bookCategoryD: " + bookCategoryD);
 
