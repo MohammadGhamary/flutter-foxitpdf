@@ -212,6 +212,10 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
    *   [len-32..len)       32-byte HMAC-SHA256 tag over token[0..len-32)
    */
   private String decryptLic(String encryptionKey, String encryptedToken) throws Exception {
+
+    Log.d(TAG, "encryptionKey: " + encryptionKey);
+    Log.d(TAG, "encryptedToken: " + encryptedToken);
+
     if (encryptionKey == null || encryptionKey.length() != 32) {
       throw new IllegalArgumentException("Encryption key must be exactly 32 characters");
     }
