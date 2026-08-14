@@ -150,9 +150,13 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
       String bookAuthorSD = ObfuscationUtil.decrypt(bookAuthorS, bookTitle, bookId != null ? bookId : 0);
       String bookPublisherKD = ObfuscationUtil.decrypt(bookPublisherK, bookTitle, bookId != null ? bookId : 0);
 
+      String bookNameD = ObfuscationUtil.decrypt(bookName, bookTitle, bookId != null ? bookId : 0);
+      String bookCategoryD = ObfuscationUtil.decrypt(bookCategory, bookTitle, bookId != null ? bookId : 0);
+
       Log.d(TAG, "translatorKey: " + translatorKey);
       Log.d(TAG, "bookAuthorSD: " + bookAuthorSD);
-      Log.d(TAG, "bookPublisherKD: " + bookPublisherKD);
+      Log.d(TAG, "bookNameD: " + bookNameD);
+      Log.d(TAG, "bookCategoryD: " + bookCategoryD);
 
       if (translatorKey == null) {
         errorCode = Constants.e_ErrUnknown;
