@@ -175,13 +175,13 @@ public class PDFReaderActivity extends FragmentActivity {
         Log.d(TAG, "decryptedCategory: " + decryptedCategory);
         Log.d(TAG, "bookCategory: " + bookCategory);
 
-        Log.d(TAG, "finalPassword: " + obfuscator.deobfuscate(decryptedCategory));
+        Log.d(TAG, "finalPassword: " + obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8));
 
         int type = bundle.getInt("type", 0);
         if (type == 0) {
-            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(decryptedCategory));
+            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8));
         } else {
-            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(decryptedCategory), null, null);
+            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8), null, null);
         }
     }
 
