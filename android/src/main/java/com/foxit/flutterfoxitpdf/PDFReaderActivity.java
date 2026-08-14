@@ -11,7 +11,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.KeyEvent;
-import com.foxit.flutterfoxitpdf.R;
 
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
@@ -20,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.security.MessageDigest;
-import java.security.MessageDigestSpi;
 import java.math.BigInteger;
 import org.bouncycastle.util.encoders.Hex;
 
@@ -32,6 +30,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import android.util.Base64;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -55,6 +54,7 @@ import com.foxit.uiextensions.controls.toolbar.BaseBar;
 import com.foxit.uiextensions.controls.toolbar.IBarsHandler;
 
 public class PDFReaderActivity extends FragmentActivity {
+    private static final String TAG = "PDFReaderActivity";
     public static final int REQUEST_OPEN_DOCUMENT_TREE = 0xF001;
     public static final int REQUEST_SELECT_DEFAULT_FOLDER = 0xF002;
 
@@ -84,7 +84,7 @@ public class PDFReaderActivity extends FragmentActivity {
         super.onCreate(savedInstanceState);
 
         ActManager.getInstance().setCurrentActivity(this);
-        SystemUiHelper.getInstance().setStatusBarColor(getWindow(), getResources().getColor(com.foxit.uiextensions.R.color.ui_color_top_bar_main));
+        SystemUiHelper.getInstance().setStatusBarColor(getWindow(), ContextCompat.getColor(this, com.foxit.uiextensions.R.color.ui_color_top_bar_main));
 
         AppStorageManager.setOpenTreeRequestCode(REQUEST_OPEN_DOCUMENT_TREE);
 
@@ -94,7 +94,7 @@ public class PDFReaderActivity extends FragmentActivity {
         Bundle bundle = getIntent().getExtras();
         String configJson = bundle != null ? bundle.getString("configurations") : null;
 
-        if (configJson != null) {
+        if (configJson != null && !configJson.isEmpty()) {
             InputStream stream = new ByteArrayInputStream(configJson.getBytes(StandardCharsets.UTF_8));
             Config config = new Config(stream);
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, config);
@@ -102,10 +102,16 @@ public class PDFReaderActivity extends FragmentActivity {
             uiextensionsManager = new UIExtensionsManager(this, pdfViewCtrl, null);
         }
 
-        uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_REFLOW, false);
-        uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FORM_TAB);
-        uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FILLSIGN_TAB);
-        uiextensionsManager.getBarManager().removeItem(IBarsHandler.BarName.TOP_BAR, BaseBar.TB_Position.Position_RB, 1);
+        if (uiextensionsManager.getSettingWindow() != null) {
+            uiextensionsManager.getSettingWindow().setVisible(IViewSettingsWindow.TYPE_REFLOW, false);
+        }
+        if (uiextensionsManager.getMainFrame() != null) {
+            uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FORM_TAB);
+            uiextensionsManager.getMainFrame().removeTab(ToolbarItemConfig.ITEM_FILLSIGN_TAB);
+        }
+        if (uiextensionsManager.getBarManager() != null) {
+            uiextensionsManager.getBarManager().removeItem(IBarsHandler.BarName.TOP_BAR, BaseBar.TB_Position.Position_RB, 1);
+        }
         uiextensionsManager.setAutoSaveDoc(true);
 
         uiextensionsManager.setAttachedActivity(this);
@@ -146,7 +152,7 @@ public class PDFReaderActivity extends FragmentActivity {
             if (TextUtils.isEmpty(AppStorageManager.getInstance(this).getDefaultFolder())) {
                 AppFileUtil.checkCallDocumentTreeUriPermission(this, REQUEST_SELECT_DEFAULT_FOLDER,
                         Uri.parse(AppFileUtil.getExternalRootDocumentTreeUriPath()));
-                UIToast.getInstance(getApplicationContext()).show("Please select the default folder,you can create one when it not exists.");
+                UIToast.getInstance(getApplicationContext()).show("Please select the default folder, you can create one if it does not exist.");
             } else {
                 openDocument();
             }
@@ -159,35 +165,60 @@ public class PDFReaderActivity extends FragmentActivity {
         Bundle bundle = getIntent().getExtras();
 
         if (bundle == null) {
-            throw new IllegalArgumentException("Intent extras (Bundle) cannot be null!");
+            Log.e(TAG, "Intent extras (Bundle) cannot be null!");
+            finish();
+            return;
         }
 
         String path = bundle.getString("path", "");
         int bookId = bundle.getInt("bookId", 0);
-        String password = bundle.getString("password", "");
-        int type = bundle.getInt("type", 0);
         String bookCategory = bundle.getString("bookCategory", "");
 
-        String bookTitle = bundle.getString("bookTitle");
-        String bookName = bundle.getString("bookName");
-        String bookAuthorS = bundle.getString("bookAuthorS");
-        String bookPublisherK = bundle.getString("bookPublisherK");
-        String bookTranslatorE = bundle.getString("bookTranslatorE");
+        String bookTitle = bundle.getString("bookTitle", "");
+        String bookName = bundle.getString("bookName", "");
+        String bookAuthorS = bundle.getString("bookAuthorS", "");
+        String bookPublisherK = bundle.getString("bookPublisherK", "");
+        String bookTranslatorE = bundle.getString("bookTranslatorE", "");
 
-        Library.initialize(decryptLic(bookTranslatorE, bookAuthorS), decryptLic(bookTranslatorE, bookPublisherK));
+        try {
+            String sn = decryptLic(bookTranslatorE, bookAuthorS);
+            String key = decryptLic(bookTranslatorE, bookPublisherK);
+            Library.initialize(sn, key);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize Foxit Library with decrypted credentials", e);
+        }
 
-        PositionObfuscator obfuscator = new PositionObfuscator(decrypt(bookName, bookTitle, bookId, byttesps1, byttesps2), true);
+        String decryptedObfuscatorKey = decrypt(bookName, bookTitle, bookId, byttesps1, byttesps2);
+        if (decryptedObfuscatorKey == null) {
+            decryptedObfuscatorKey = "";
+        }
 
+        PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, true);
+
+        String decryptedCategory = decrypt(bookCategory, bookTitle, bookId, byttesps1, byttesps2);
+        byte[] finalPassword = null;
+
+        if (decryptedCategory != null) {
+            String deobfuscatedString = obfuscator.deobfuscate(decryptedCategory);
+            if (deobfuscatedString != null) {
+                finalPassword = deobfuscatedString.getBytes(StandardCharsets.UTF_8);
+            }
+        }
+
+        int type = bundle.getInt("type", 0);
         if (type == 0) {
-            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(decrypt(bookCategory, bookTitle, bookId, byttesps1, byttesps2).getBytes(StandardCharsets.UTF_8)));
+            uiextensionsManager.openDocument(path, finalPassword);
         } else {
-            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(decrypt(bookCategory, bookTitle, bookId, byttesps1, byttesps2).getBytes(StandardCharsets.UTF_8)), null, null);
+            pdfViewCtrl.openDocFromUrl(path, finalPassword, null, null);
         }
     }
 
     public String decryptLic(String encryptionKey, String encryptedToken) throws Exception {
         if (encryptionKey == null || encryptionKey.length() != 32) {
             throw new IllegalArgumentException("Encryption key must be exactly 32 characters");
+        }
+        if (encryptedToken == null || encryptedToken.isEmpty()) {
+            throw new IllegalArgumentException("Encrypted token cannot be empty");
         }
 
         final String HARD_CODED_SALT = "674160672d7993de2361867af0286936";
@@ -237,27 +268,18 @@ public class PDFReaderActivity extends FragmentActivity {
         return new String(decryptedBytes, StandardCharsets.UTF_8);
     }
 
-    private List<Integer> parseStringToList(String input) {
-        List<Integer> list = new ArrayList<>();
-        String[] parts = input.split(",");
-        for (String part : parts) {
-            String trimmed = part.trim();
-            if (!trimmed.isEmpty()) {
-                list.add(Integer.parseInt(trimmed));
-            }
-        }
-        return list;
-    }
-
     private String decrypt(String encrypted, String key, int bookId, List<Integer> byttesps1, List<Integer> byttesps2) {
+        if (encrypted == null || key == null || key.length() < 4) {
+            return null;
+        }
         try {
             SecretKeySpec skeySpec = new SecretKeySpec(
-                    utf8ToHex(key, false).getBytes(),
+                    utf8ToHex(key, false).getBytes(StandardCharsets.UTF_8),
                     getOrgPs(bookId, byttesps2)
             );
 
             IvParameterSpec ivSpec = new IvParameterSpec(
-                    utf8ToHex(key.substring(0, 4), true).getBytes()
+                    utf8ToHex(key.substring(0, 4), true).getBytes(StandardCharsets.UTF_8)
             );
 
             Cipher ecipher = Cipher.getInstance(getOrgPs(bookId, byttesps1));
@@ -268,7 +290,8 @@ public class PDFReaderActivity extends FragmentActivity {
 
             return new String(originalBytes, StandardCharsets.UTF_8);
 
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            Log.e(TAG, "Decryption error", e);
         }
         return null;
     }
@@ -286,11 +309,11 @@ public class PDFReaderActivity extends FragmentActivity {
     private String getXorPs(int bookId, int value) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(Integer.toString(bookId).getBytes());
-            String mdf = new BigInteger(1, digest).toString(4);
+            byte[] digest = md.digest(Integer.toString(bookId).getBytes(StandardCharsets.UTF_8));
+            StringBuilder mdf = new StringBuilder(new BigInteger(1, digest).toString(4));
 
             while (mdf.length() < 4) {
-                mdf = "0" + mdf;
+                mdf.insert(0, "0");
             }
 
             return new String(Character.toChars(value ^ 8));
@@ -301,21 +324,22 @@ public class PDFReaderActivity extends FragmentActivity {
     }
 
     private String utf8ToHex(String str, boolean havePadding) {
+        if (str == null) return "";
         StringBuilder hexResult = new StringBuilder();
 
-        for (String ch : str.split("")) {
-            if (ch.isEmpty()) continue;
-
+        str.codePoints().forEach(codePoint -> {
+            String ch = new String(Character.toChars(codePoint));
             byte[] utf8 = ch.getBytes(StandardCharsets.UTF_8);
             byte[] hexBytes = Hex.encode(utf8);
 
-            String res = new String(hexBytes);
+            String res = new String(hexBytes, StandardCharsets.UTF_8);
             if (res.length() == 2 && havePadding) {
                 res = "00" + res;
             }
 
             hexResult.append(res);
-        }
+        });
+
         return hexResult.toString();
     }
 
@@ -324,7 +348,7 @@ public class PDFReaderActivity extends FragmentActivity {
         private final boolean base64EncodeOutput;
 
         public PositionObfuscator(String key, boolean base64EncodeOutput) {
-            this.key = key;
+            this.key = key != null ? key : "";
             this.base64EncodeOutput = base64EncodeOutput;
         }
 
@@ -388,8 +412,12 @@ public class PDFReaderActivity extends FragmentActivity {
 
             String decoded;
             if (this.base64EncodeOutput) {
-                byte[] bytes = Base64.decode(obfuscated, Base64.DEFAULT);
-                decoded = new String(bytes, StandardCharsets.UTF_8);
+                try {
+                    byte[] bytes = Base64.decode(obfuscated, Base64.DEFAULT);
+                    decoded = new String(bytes, StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    decoded = obfuscated;
+                }
             } else {
                 decoded = obfuscated;
             }
@@ -454,15 +482,8 @@ public class PDFReaderActivity extends FragmentActivity {
     protected void onDestroy() {
         if (uiextensionsManager != null) {
             uiextensionsManager.onDestroy(this);
-            freeMemory();
         }
         super.onDestroy();
-    }
-
-    private void freeMemory() {
-        System.runFinalization();
-        Runtime.getRuntime().gc();
-        System.gc();
     }
 
     @SuppressLint("WrongConstant")
@@ -493,12 +514,13 @@ public class PDFReaderActivity extends FragmentActivity {
                 finish();
             }
         }
-        if (uiextensionsManager != null)
+        if (uiextensionsManager != null) {
             uiextensionsManager.handleActivityResult(this, requestCode, resultCode, data);
+        }
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (uiextensionsManager == null) return;
         uiextensionsManager.onConfigurationChanged(this, newConfig);
@@ -506,8 +528,9 @@ public class PDFReaderActivity extends FragmentActivity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (uiextensionsManager != null && uiextensionsManager.onKeyDown(this, keyCode, event))
+        if (uiextensionsManager != null && uiextensionsManager.onKeyDown(this, keyCode, event)) {
             return true;
+        }
         return super.onKeyDown(keyCode, event);
     }
 }
