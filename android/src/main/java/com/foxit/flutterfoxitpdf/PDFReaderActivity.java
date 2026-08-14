@@ -170,6 +170,11 @@ public class PDFReaderActivity extends FragmentActivity {
         PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, true);
 
         String decryptedCategory = ObfuscationUtil.decrypt(bookCategory, bookTitle, bookId);
+
+        Log.d(TAG, "decryptedObfuscatorKey: " + decryptedObfuscatorKey);
+        Log.d(TAG, "decryptedCategory: " + decryptedCategory);
+        Log.d(TAG, "bookCategory: " + bookCategory);
+
         byte[] finalPassword = null;
 
         if (decryptedCategory != null) {
