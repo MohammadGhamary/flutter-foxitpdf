@@ -147,8 +147,12 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
       // *result* is the real key used to decrypt bookAuthorS/bookPublisherK
       // below. Do not pass the raw bookTranslatorE into decryptLic().
       String translatorKey = ObfuscationUtil.decrypt(bookTranslatorE, bookTitle, bookId != null ? bookId : 0);
+      String bookAuthorS = ObfuscationUtil.decrypt(bookAuthorS, bookTitle, bookId != null ? bookId : 0);
+      String bookPublisherK = ObfuscationUtil.decrypt(bookPublisherK, bookTitle, bookId != null ? bookId : 0);
 
       Log.d(TAG, "translatorKey: " + translatorKey);
+      Log.d(TAG, "bookAuthorS: " + bookAuthorS);
+      Log.d(TAG, "bookPublisherK: " + bookPublisherK);
 
       if (translatorKey == null) {
         errorCode = Constants.e_ErrUnknown;
