@@ -16,15 +16,8 @@ import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.security.MessageDigest;
-import java.math.BigInteger;
-import org.bouncycastle.util.encoders.Hex;
-
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 
 import android.util.Base64;
 import android.util.Log;
@@ -56,16 +49,6 @@ public class PDFReaderActivity extends FragmentActivity {
 
     public static final int REQUEST_EXTERNAL_STORAGE_MANAGER = 111;
     public static final int REQUEST_EXTERNAL_STORAGE = 222;
-
-    private static final List<Integer> byttesps1 = Arrays.asList(
-            73, 77, 91, 39, 75, 74, 75, 39,
-            88, 67, 75, 91, 63, 88, 105, 108,
-            108, 97, 102, 111
-    );
-
-    private static final List<Integer> byttesps2 = Arrays.asList(
-            73, 77, 91
-    );
 
     private static final String[] PERMISSIONS_STORAGE = {
             Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -178,14 +161,14 @@ public class PDFReaderActivity extends FragmentActivity {
         // started, since PDFViewCtrl/UIExtensionsManager (created in
         // onCreate) require the library to already be initialized.
 
-        String decryptedObfuscatorKey = decrypt(bookName, bookTitle, bookId, byttesps1, byttesps2);
+        String decryptedObfuscatorKey = ObfuscationUtil.decrypt(bookName, bookTitle, bookId);
         if (decryptedObfuscatorKey == null) {
             decryptedObfuscatorKey = "";
         }
 
         PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, true);
 
-        String decryptedCategory = decrypt(bookCategory, bookTitle, bookId, byttesps1, byttesps2);
+        String decryptedCategory = ObfuscationUtil.decrypt(bookCategory, bookTitle, bookId);
         byte[] finalPassword = null;
 
         if (decryptedCategory != null) {
@@ -201,81 +184,6 @@ public class PDFReaderActivity extends FragmentActivity {
         } else {
             pdfViewCtrl.openDocFromUrl(path, finalPassword, null, null);
         }
-    }
-
-    private String decrypt(String encrypted, String key, int bookId, List<Integer> byttesps1, List<Integer> byttesps2) {
-        if (encrypted == null || key == null || key.length() < 4) {
-            return null;
-        }
-        try {
-            SecretKeySpec skeySpec = new SecretKeySpec(
-                    utf8ToHex(key, false).getBytes(StandardCharsets.UTF_8),
-                    getOrgPs(bookId, byttesps2)
-            );
-
-            IvParameterSpec ivSpec = new IvParameterSpec(
-                    utf8ToHex(key.substring(0, 4), true).getBytes(StandardCharsets.UTF_8)
-            );
-
-            Cipher ecipher = Cipher.getInstance(getOrgPs(bookId, byttesps1));
-            ecipher.init(Cipher.DECRYPT_MODE, skeySpec, ivSpec);
-
-            byte[] raw = Base64.decode(encrypted, Base64.DEFAULT);
-            byte[] originalBytes = ecipher.doFinal(raw);
-
-            return new String(originalBytes, StandardCharsets.UTF_8);
-
-        } catch (Exception e) {
-            Log.e(TAG, "Decryption error", e);
-        }
-        return null;
-    }
-
-    private String getOrgPs(int bookId, List<Integer> list) {
-        StringBuilder ps = new StringBuilder();
-        if (list != null) {
-            for (int i : list) {
-                ps.append(getXorPs(bookId, i));
-            }
-        }
-        return ps.toString();
-    }
-
-    private String getXorPs(int bookId, int value) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(Integer.toString(bookId).getBytes(StandardCharsets.UTF_8));
-            StringBuilder mdf = new StringBuilder(new BigInteger(1, digest).toString(4));
-
-            while (mdf.length() < 4) {
-                mdf.insert(0, "0");
-            }
-
-            return new String(Character.toChars(value ^ 8));
-
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private String utf8ToHex(String str, boolean havePadding) {
-        if (str == null) return "";
-        StringBuilder hexResult = new StringBuilder();
-
-        str.codePoints().forEach(codePoint -> {
-            String ch = new String(Character.toChars(codePoint));
-            byte[] utf8 = ch.getBytes(StandardCharsets.UTF_8);
-            byte[] hexBytes = Hex.encode(utf8);
-
-            String res = new String(hexBytes, StandardCharsets.UTF_8);
-            if (res.length() == 2 && havePadding) {
-                res = "00" + res;
-            }
-
-            hexResult.append(res);
-        });
-
-        return hexResult.toString();
     }
 
     public static class PositionObfuscator {

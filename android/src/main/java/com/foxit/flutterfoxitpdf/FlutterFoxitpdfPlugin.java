@@ -113,8 +113,6 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
 
   private void openDocument(MethodCall call, Result result) {
 
-    Log.d(TAG, "ggggggggggggggggggggggggggggggggggg");
-
     String path = call.argument("path");
     String password = call.argument("password");
     Integer bookId = call.argument("bookId");
@@ -125,6 +123,8 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     String bookPublisherK = call.argument("bookPublisherK");
     String bookTranslatorE = call.argument("bookTranslatorE");
     HashMap<String, Object> configurationsMap = call.argument("configurations");
+
+    Log.d(TAG, "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy");
 
     if (path == null || path.trim().length() < 1) {
       result.error("" + Constants.e_ErrParam,"Invalid path", Constants.e_ErrParam);
@@ -141,14 +141,29 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     // PDFViewCtrl/UIExtensionsManager, which require the library to be
     // initialized beforehand. Doing this inside the Activity is too late.
     try {
-      Log.d(TAG, "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss");
+      // bookTranslatorE is itself an encrypted string — the same
+      // obfuscation scheme PDFReaderActivity uses for bookName/bookCategory
+      // (keyed by bookTitle + bookId). It must be decrypted first; the
+      // *result* is the real key used to decrypt bookAuthorS/bookPublisherK
+      // below. Do not pass the raw bookTranslatorE into decryptLic().
+      String translatorKey = ObfuscationUtil.decrypt(bookTranslatorE, bookTitle, bookId != null ? bookId : 0);
 
-      String sn = decryptLic(bookTranslatorE, decryptLic(bookTranslatorE, bookAuthorS));
-      String key = decryptLic(bookTranslatorE, bookPublisherK);
+      Log.d(TAG, "translatorKey: " + translatorKey);
+
+      if (translatorKey == null) {
+        errorCode = Constants.e_ErrUnknown;
+        result.error("" + errorCode, "Failed to decrypt bookTranslatorE", errorCode);
+        return;
+      }
+
+      String sn = decryptLic(translatorKey, decryptLic(translatorKey, bookAuthorS));
+      String key = decryptLic(translatorKey, bookPublisherK);
 
       Log.d(TAG, "Decrypted SN: " + sn);
       Log.d(TAG, "Decrypted Key: " + key);
 
+      // Do NOT log sn/key/translatorKey here, even at debug level: they are
+      // the raw license credentials and must never end up in logcat.
       errorCode = Library.initialize(sn, key);
     } catch (Exception e) {
       Log.e(TAG, "Failed to decrypt license", e);
