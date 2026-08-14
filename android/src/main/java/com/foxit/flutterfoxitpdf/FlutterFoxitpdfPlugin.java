@@ -147,12 +147,12 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
       // *result* is the real key used to decrypt bookAuthorS/bookPublisherK
       // below. Do not pass the raw bookTranslatorE into decryptLic().
       String translatorKey = ObfuscationUtil.decrypt(bookTranslatorE, bookTitle, bookId != null ? bookId : 0);
-      String bookAuthorS = ObfuscationUtil.decrypt(bookAuthorS, bookTitle, bookId != null ? bookId : 0);
-      String bookPublisherK = ObfuscationUtil.decrypt(bookPublisherK, bookTitle, bookId != null ? bookId : 0);
+      String bookAuthorSD = ObfuscationUtil.decrypt(bookAuthorS, bookTitle, bookId != null ? bookId : 0);
+      String bookPublisherKD = ObfuscationUtil.decrypt(bookPublisherK, bookTitle, bookId != null ? bookId : 0);
 
       Log.d(TAG, "translatorKey: " + translatorKey);
-      Log.d(TAG, "bookAuthorS: " + bookAuthorS);
-      Log.d(TAG, "bookPublisherK: " + bookPublisherK);
+      Log.d(TAG, "bookAuthorSD: " + bookAuthorSD);
+      Log.d(TAG, "bookPublisherKD: " + bookPublisherKD);
 
       if (translatorKey == null) {
         errorCode = Constants.e_ErrUnknown;
@@ -160,8 +160,8 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
         return;
       }
 
-      String sn = decryptLic(translatorKey, decryptLic(translatorKey, bookAuthorS));
-      String key = decryptLic(translatorKey, bookPublisherK);
+      String sn = decryptLic(translatorKey, decryptLic(translatorKey, bookAuthorSD));
+      String key = decryptLic(translatorKey, bookPublisherKD);
 
       Log.d(TAG, "Decrypted SN: " + sn);
       Log.d(TAG, "Decrypted Key: " + key);
