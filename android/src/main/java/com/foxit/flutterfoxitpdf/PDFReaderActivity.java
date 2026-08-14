@@ -181,8 +181,17 @@ public class PDFReaderActivity extends FragmentActivity {
         String bookTranslatorE = bundle.getString("bookTranslatorE", "");
 
         try {
+
+            Log.d(TAG, "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss");
+
             String sn = decryptLic(bookTranslatorE, decryptLic(bookTranslatorE, bookAuthorS));
             String key = decryptLic(bookTranslatorE, bookPublisherK);
+
+            Log.d(TAG, "Decrypted SN: " + sn);
+            Log.d(TAG, "Decrypted Key: " + key);
+
+            Log.e(TAG, "Failed to initialize Foxit Library with decrypted credentials", e);
+
             Library.initialize(sn, key);
         } catch (Exception e) {
             Log.e(TAG, "Failed to initialize Foxit Library with decrypted credentials", e);
@@ -221,7 +230,7 @@ public class PDFReaderActivity extends FragmentActivity {
             throw new IllegalArgumentException("Encrypted token cannot be empty");
         }
 
-        final String HARD_CODED_SALT = "674160672d7993de2361867af0286936";
+        final String HARD_CODED_SALT = "fb0dae6afae2a731bf1398759c4e6567";
         final int ITERATIONS = 100000;
 
         PBEKeySpec spec = new PBEKeySpec(
