@@ -112,6 +112,9 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   }
 
   private void openDocument(MethodCall call, Result result) {
+
+    Log.d(TAG, "ggggggggggggggggggggggggggggggggggg");
+
     String path = call.argument("path");
     String password = call.argument("password");
     Integer bookId = call.argument("bookId");
