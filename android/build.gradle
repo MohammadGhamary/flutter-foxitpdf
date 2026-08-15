@@ -8,7 +8,11 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.4'
+        // FIX: AGP 3.5.4 (2019) does not support compileSdk 36 at all --
+        // this combination was internally inconsistent. Bumped to a
+        // current AGP release; adjust to whatever your Gradle wrapper
+        // version supports.
+        classpath 'com.android.tools.build:gradle:8.5.2'
     }
 }
 
@@ -29,10 +33,17 @@ android {
 
     compileSdk 36
 
+    // FIX: pin the NDK version explicitly. Without this, the NDK actually
+    // used depends on whatever happens to be installed via SDK Manager on
+    // each machine/CI runner, which is not reproducible and can silently
+    // change ABI/toolchain behavior for the native crypto module.
+    ndkVersion "27.2.12479018"
+
     defaultConfig {
         minSdk 26
         versionName "9.1.0"
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        // FIX: old support-library test runner replaced with the androidx one.
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         // --- native crypto module -------------------------------------
         externalNativeBuild {
@@ -45,16 +56,22 @@ android {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86_64"
         }
         // -----------------------------------------------------------------
+
+        // FIX: propagate this module's proguard rules to whatever app
+        // consumes it. Without consumerProguardFiles, the -keep rule that
+        // protects NativeCrypto's FindClass() lookup only applies to this
+        // module's own (isolated) R8 pass -- the app's final R8 pass over
+        // the whole merged APK could still rename/strip it.
+        consumerProguardFiles 'proguard-rules.pro'
     }
 
     // --- native crypto module: point Gradle at the CMake script ---------
-    // NOTE: unlike newer AGP versions, 3.5.4 does not support specifying a
-    // "version" here -- the CMake binary used is whatever is installed via
-    // SDK Manager (Tools > SDK Manager > SDK Tools > CMake). Make sure
-    // something >= 3.18 is installed, since mbedTLS requires it.
     externalNativeBuild {
         cmake {
             path "src/main/cpp/CMakeLists.txt"
+            // FIX: pin CMake version explicitly (AGP 8.x supports this,
+            // unlike 3.5.4). mbedTLS requires >= 3.18.
+            version "3.22.1"
         }
     }
     // ----------------------------------------------------------------------
@@ -68,23 +85,43 @@ android {
     }
     // ----------------------------------------------------------------------
 
-    lintOptions {
+    lint {
         disable 'InvalidPackage'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.3.1'
-    implementation 'com.google.android.material:material:1.4.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation(name: 'FoxitRDK', ext: 'aar')
     implementation(name: 'FoxitRDKUIExtensions', ext: 'aar')
+
+    // FIX: com.edmodo:cropper is unmaintained since ~2016. Prefer an
+    // actively maintained cropping library, e.g.:
+    // implementation 'com.github.CanHub:Android-Image-Cropper:4.6.0'
     implementation 'com.edmodo:cropper:1.0.1'
-    implementation 'com.microsoft.identity.client:msal:2.2.0'
+
+    implementation 'com.microsoft.identity.client:msal:5.4.0'
+
+    // FIX: universal-image-loader has been unmaintained since 2018 and
+    // predates modern Android image-loading/security practices. Prefer
+    // Glide or Coil if this dependency can be replaced:
+    // implementation 'com.github.bumptech.glide:glide:4.16.0'
     implementation 'com.nostra13.universalimageloader:universal-image-loader:1.9.5'
-    implementation "io.reactivex.rxjava2:rxjava:2.2.16"
+
+    implementation "io.reactivex.rxjava2:rxjava:2.2.21"
     implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
-    implementation 'org.bouncycastle:bcpkix-jdk15on:1.64'
-    implementation 'org.bouncycastle:bcprov-jdk15on:1.64'
+
+    // FIX: the jdk15on Bouncy Castle artifacts are deprecated with known
+    // fixed CVEs in later releases. Migrate to jdk18on.
+    implementation 'org.bouncycastle:bcpkix-jdk18on:1.78.1'
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
+
     implementation 'com.google.mlkit:digital-ink-recognition:18.1.0'
 }

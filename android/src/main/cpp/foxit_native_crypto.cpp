@@ -12,6 +12,14 @@
 //     Frida trace of the JNI call), it just raises the cost significantly
 //     compared to the previous plain-Java implementation.
 //
+// IMPORTANT CAVEAT: secureZero() below only scrubs *native* (C++) memory.
+// Once a decrypted value is handed back to Java via NewStringUTF(), the JVM
+// holds its own copy on the managed heap. java.lang.String is immutable,
+// may be copied/relocated by the garbage collector, and cannot be reliably
+// zeroed from Java. Treat the "secure" wiping here as raising the cost of a
+// memory-scrape attack on the native side only, not as a guarantee that the
+// decrypted license/token never lingers in process memory.
+//
 // Requires mbedTLS (see CMakeLists.txt). Depends only on mbedcrypto.
 
 #include <jni.h>
@@ -24,6 +32,7 @@
 #include "mbedtls/md.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/base64.h"
+#include "mbedtls/platform_util.h"
 
 namespace {
 
@@ -37,11 +46,27 @@ namespace {
 // Zero out a buffer before it goes out of scope. Best-effort hygiene --
 // this does not defeat a live memory dump taken while the buffer is in use,
 // but it does shrink the window where the key sits in memory.
+//
+// FIX: delegate to mbedtls_platform_util_zeroize() instead of a hand-rolled
+// volatile-pointer loop. mbedTLS's implementation is audited, kept in sync
+// with new compiler optimization behavior across mbedTLS releases, and is
+// the same primitive the rest of the library uses internally -- using our
+// own reimplementation risked silently diverging from that guarantee on a
+// future compiler/NDK upgrade.
     void secureZero(void* p, size_t n) {
-        if (p) {
-            volatile uint8_t* vp = static_cast<volatile uint8_t*>(p);
-            while (n--) *vp++ = 0;
+        if (p && n) {
+            mbedtls_platform_zeroize(p, n);
         }
+    }
+
+    // Convenience overload for std::string/std::vector<uint8_t> buffers.
+    // Guards against calling data() on an empty container, which several
+    // call sites below previously did not do.
+    void secureZeroStr(std::string& s) {
+        if (!s.empty()) secureZero(&s[0], s.size());
+    }
+    void secureZeroVec(std::vector<uint8_t>& v) {
+        if (!v.empty()) secureZero(v.data(), v.size());
     }
 
     std::string jstringToUtf8(JNIEnv* env, jstring s) {
@@ -201,12 +226,17 @@ namespace {
         const uint8_t* aesKey = derived.data() + 16;       // bytes [16,32)
 
         std::vector<uint8_t> outer;
-        if (!base64UrlDecode(encryptedToken, &outer)) { secureZero(derived.data(), derived.size()); return {}; }
+        if (!base64UrlDecode(encryptedToken, &outer)) { secureZeroVec(derived); return {}; }
         std::string outerStr(outer.begin(), outer.end());
         std::vector<uint8_t> token;
-        if (!base64UrlDecode(outerStr, &token)) { secureZero(derived.data(), derived.size()); return {}; }
+        if (!base64UrlDecode(outerStr, &token)) {
+            secureZeroVec(derived);
+            secureZeroStr(outerStr);
+            return {};
+        }
+        secureZeroStr(outerStr);
 
-        if (token.size() < 57) { secureZero(derived.data(), derived.size()); return {}; }
+        if (token.size() < 57) { secureZeroVec(derived); return {}; }
 
         const uint8_t* iv = token.data() + 9;                       // [9,25)
         const uint8_t* ciphertext = token.data() + 25;               // [25, len-32)
@@ -215,20 +245,22 @@ namespace {
 
         uint8_t computedTag[32];
         if (!hmacSha256(signingKey, 16, token.data(), token.size() - 32, computedTag)) {
-            secureZero(derived.data(), derived.size());
+            secureZeroVec(derived);
             return {};
         }
         if (!constantTimeEqual(computedTag, hmacTag, 32)) {
-            secureZero(derived.data(), derived.size());
+            secureZeroVec(derived);
             return {};
         }
 
         std::vector<uint8_t> plaintext;
         bool ok = aesCbcDecryptPkcs7(aesKey, 16, iv, ciphertext, ciphertextLen, &plaintext);
-        secureZero(derived.data(), derived.size());
+        secureZeroVec(derived);
         if (!ok) return {};
 
-        return std::string(plaintext.begin(), plaintext.end());
+        std::string result(plaintext.begin(), plaintext.end());
+        secureZeroVec(plaintext);
+        return result;
     }
 
 // --- ObfuscationUtil.decrypt -------------------------------------------
@@ -259,6 +291,7 @@ namespace {
         // misleadingly-named "bookTitle" parameter) wasn't exactly 8 UTF-8
         // bytes long. Use the FULL keyHex length here, not a fixed 16.
         if (keyHex.size() != 16 && keyHex.size() != 24 && keyHex.size() != 32) {
+            secureZeroStr(keyHex);
             return {};
         }
         // AES-CBC always needs exactly a 16-byte (block-size) IV regardless of
@@ -266,11 +299,14 @@ namespace {
         // would itself have thrown InvalidAlgorithmParameterException, so the
         // input is not decryptable either way.
         if (ivHex.size() != 16) {
+            secureZeroStr(keyHex);
             return {};
         }
 
         std::vector<uint8_t> keyBytes(keyHex.begin(), keyHex.end());
         std::vector<uint8_t> ivBytes(ivHex.begin(), ivHex.end());
+        secureZeroStr(keyHex);
+        secureZeroStr(ivHex);
 
         std::vector<uint8_t> raw;
         // Standard (non-URL-safe) Base64.DEFAULT decoding, as in the original.
@@ -279,21 +315,40 @@ namespace {
             int rc = mbedtls_base64_decode(nullptr, 0, &decodedLen,
                                            reinterpret_cast<const uint8_t*>(encrypted.data()),
                                            encrypted.size());
-            if (rc != 0 && rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL) return {};
+            if (rc != 0 && rc != MBEDTLS_ERR_BASE64_BUFFER_TOO_SMALL) {
+                secureZeroVec(keyBytes);
+                secureZeroVec(ivBytes);
+                return {};
+            }
             raw.resize(decodedLen);
             size_t written = 0;
             rc = mbedtls_base64_decode(raw.data(), raw.size(), &written,
                                        reinterpret_cast<const uint8_t*>(encrypted.data()),
                                        encrypted.size());
-            if (rc != 0) return {};
+            if (rc != 0) {
+                secureZeroVec(keyBytes);
+                secureZeroVec(ivBytes);
+                return {};
+            }
             raw.resize(written);
         }
 
         std::vector<uint8_t> plaintext;
-        if (!aesCbcDecryptPkcs7(keyBytes.data(), keyBytes.size(), ivBytes.data(), raw.data(), raw.size(), &plaintext)) {
+        bool ok = aesCbcDecryptPkcs7(keyBytes.data(), keyBytes.size(), ivBytes.data(), raw.data(), raw.size(), &plaintext);
+
+        // FIX: previously keyBytes/ivBytes/plaintext were never scrubbed here,
+        // unlike the equivalent derived-key buffer in decryptLicImpl. Zero
+        // them all before returning, on both the success and failure paths.
+        secureZeroVec(keyBytes);
+        secureZeroVec(ivBytes);
+
+        if (!ok) {
+            secureZeroVec(plaintext);
             return {};
         }
-        return std::string(plaintext.begin(), plaintext.end());
+        std::string result(plaintext.begin(), plaintext.end());
+        secureZeroVec(plaintext);
+        return result;
     }
 
 // --- JNI entry points ---------------------------------------------------
@@ -302,10 +357,10 @@ namespace {
         std::string key = jstringToUtf8(env, encryptionKey);
         std::string token = jstringToUtf8(env, encryptedToken);
         std::string result = decryptLicImpl(key, token);
-        secureZero(&key[0], key.size());
+        secureZeroStr(key);
         if (result.empty()) return nullptr;
         jstring jresult = utf8ToJstring(env, result);
-        secureZero(&result[0], result.size());
+        secureZeroStr(result);
         return jresult;
     }
 
@@ -313,9 +368,11 @@ namespace {
         std::string encStr = jstringToUtf8(env, encrypted);
         std::string keyStr = jstringToUtf8(env, key);
         std::string result = obfuscationDecryptImpl(encStr, keyStr, bookId);
-        secureZero(&keyStr[0], keyStr.size());
+        secureZeroStr(keyStr);
         if (result.empty()) return nullptr;
-        return utf8ToJstring(env, result);
+        jstring jresult = utf8ToJstring(env, result);
+        secureZeroStr(result);
+        return jresult;
     }
 
     JNINativeMethod gMethods[] = {
