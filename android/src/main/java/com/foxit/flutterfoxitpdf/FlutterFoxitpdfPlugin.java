@@ -34,6 +34,15 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   private Activity activity;
   private int errorCode = Constants.e_ErrUnknown;
 
+  // FIX: kept as a field so we can unregister it before registering a new
+  // one. Previously a brand-new anonymous listener was registered on every
+  // onAttachedToActivity/onReattachedToActivityForConfigChanges call
+  // without ever unregistering the old one -- each config change (e.g.
+  // rotation) leaked one more listener, and closing PDFReaderActivity
+  // would eventually fire "documentClosed" to Dart multiple times for a
+  // single close event.
+  private Application.ActivityLifecycleCallbacks lifecycleCallbacks;
+
   @Override
   public void onAttachedToEngine(@NonNull FlutterPlugin.FlutterPluginBinding flutterPluginBinding) {
     channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "flutter_foxitpdf");
@@ -62,11 +71,13 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
 
   @Override
   public void onDetachedFromActivityForConfigChanges() {
+    unregisterActivityLifecycleCallbacks();
     activity = null;
   }
 
   @Override
   public void onDetachedFromActivity() {
+    unregisterActivityLifecycleCallbacks();
     activity = null;
   }
 
@@ -122,10 +133,12 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
       return;
     }
 
+    int resolvedBookId = bookId != null ? bookId : 0;
+
     try {
-      String translatorKey = ObfuscationUtil.decrypt(bookTranslatorE, bookTitle, bookId != null ? bookId : 0);
-      String bookAuthorSD = ObfuscationUtil.decrypt(bookAuthorS, bookTitle, bookId != null ? bookId : 0);
-      String bookPublisherKD = ObfuscationUtil.decrypt(bookPublisherK, bookTitle, bookId != null ? bookId : 0);
+      String translatorKey = ObfuscationUtil.decrypt(bookTranslatorE, bookTitle, resolvedBookId);
+      String bookAuthorSD = ObfuscationUtil.decrypt(bookAuthorS, bookTitle, resolvedBookId);
+      String bookPublisherKD = ObfuscationUtil.decrypt(bookPublisherK, bookTitle, resolvedBookId);
 
       if (translatorKey == null) {
         errorCode = Constants.e_ErrUnknown;
@@ -167,7 +180,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     bundle.putInt("type", 0);
     bundle.putString("path", path);
     bundle.putString("password", password);
-    bundle.putInt("bookId", bookId != null ? bookId : 0);
+    bundle.putInt("bookId", resolvedBookId);
     bundle.putString("bookTitle", bookTitle);
     bundle.putString("bookName", bookName);
     bundle.putString("bookCategory", bookCategory);
@@ -208,34 +221,50 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
   }
 
   private void registerActivityLifecycleCallbacks() {
-    activity.getApplication().registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
-      @Override
-      public void onActivityDestroyed(@NonNull Activity activity) {
-        if (activity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
-          new Handler(Looper.getMainLooper()).post(() -> {
-            channel.invokeMethod("documentClosed", null);
-          });
+    if (activity == null) return;
 
+    // FIX: unregister any previously-registered listener before adding a
+    // new one, so config changes don't accumulate duplicate listeners.
+    unregisterActivityLifecycleCallbacks();
+
+    lifecycleCallbacks = new Application.ActivityLifecycleCallbacks() {
+      @Override
+      public void onActivityDestroyed(@NonNull Activity destroyedActivity) {
+        if (destroyedActivity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
+          new Handler(Looper.getMainLooper()).post(() -> {
+            if (channel != null) {
+              channel.invokeMethod("documentClosed", null);
+            }
+          });
         }
       }
       @Override
-      public void onActivityCreated(Activity activity, Bundle bundle) {
-        if (activity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
-          activity.getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
+      public void onActivityCreated(Activity createdActivity, Bundle bundle) {
+        if (createdActivity.getClass().getName().equals("com.foxit.flutterfoxitpdf.PDFReaderActivity")) {
+          createdActivity.getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
                   WindowManager.LayoutParams.FLAG_SECURE);
         }
       }
       @Override
-      public void onActivityStarted(Activity activity) {}
+      public void onActivityStarted(Activity startedActivity) {}
       @Override
-      public void onActivityResumed(Activity activity) {}
+      public void onActivityResumed(Activity resumedActivity) {}
       @Override
-      public void onActivityPaused(Activity activity) {}
+      public void onActivityPaused(Activity pausedActivity) {}
       @Override
-      public void onActivityStopped(Activity activity) {}
+      public void onActivityStopped(Activity stoppedActivity) {}
       @Override
-      public void onActivitySaveInstanceState(Activity activity, Bundle bundle) {}
-    });
+      public void onActivitySaveInstanceState(Activity savedActivity, Bundle bundle) {}
+    };
+
+    activity.getApplication().registerActivityLifecycleCallbacks(lifecycleCallbacks);
+  }
+
+  private void unregisterActivityLifecycleCallbacks() {
+    if (lifecycleCallbacks != null && activity != null) {
+      activity.getApplication().unregisterActivityLifecycleCallbacks(lifecycleCallbacks);
+    }
+    lifecycleCallbacks = null;
   }
 
 }

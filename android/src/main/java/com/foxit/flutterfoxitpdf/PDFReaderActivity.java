@@ -15,11 +15,9 @@ import com.foxit.flutterfoxitpdf.R;
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.security.MessageDigest;
+// FIX: android.util.Base64 and java.security.MessageDigest were unused
+// leftovers from before crypto moved to native code -- removed.
 
-import android.util.Base64;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -164,15 +162,45 @@ public class PDFReaderActivity extends FragmentActivity {
 
         String path = ObfuscationUtil.decrypt(pathE, bookTitle, bookId);
 
-        PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, /* base64EncodeOutput = */ true);
+        // FIX: previously a failed decrypt (null path) fell straight through
+        // to uiextensionsManager.openDocument(path, ...) / openDocFromUrl(),
+        // risking an NPE deep inside the SDK instead of a clean, user-facing
+        // failure. Fail fast and close the activity instead.
+        if (path == null) {
+            Log.e(TAG, "Failed to resolve document path");
+            UIToast.getInstance(getApplicationContext()).show("Unable to open document");
+            finish();
+            return;
+        }
 
         String decryptedCategory = ObfuscationUtil.decrypt(bookCategory, bookTitle, bookId);
+        if (decryptedCategory == null) {
+            Log.e(TAG, "Failed to resolve document category token");
+            UIToast.getInstance(getApplicationContext()).show("Unable to open document");
+            finish();
+            return;
+        }
+
+        PositionObfuscator obfuscator = new PositionObfuscator(decryptedObfuscatorKey, /* base64EncodeOutput = */ true);
+
+        // FIX: PositionObfuscator#deobfuscate can throw on malformed
+        // base64 input (see PositionObfuscator.java) -- guard against that
+        // instead of letting it crash the activity.
+        byte[] deobfuscatedCategoryBytes;
+        try {
+            deobfuscatedCategoryBytes = obfuscator.deobfuscate(decryptedCategory).getBytes(StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to deobfuscate category token: " + e.getClass().getSimpleName());
+            UIToast.getInstance(getApplicationContext()).show("Unable to open document");
+            finish();
+            return;
+        }
 
         int type = bundle.getInt("type", 0);
         if (type == 0) {
-            uiextensionsManager.openDocument(path, obfuscator.deobfuscate(decryptedCategory).getBytes());
+            uiextensionsManager.openDocument(path, deobfuscatedCategoryBytes);
         } else {
-            pdfViewCtrl.openDocFromUrl(path, obfuscator.deobfuscate(decryptedCategory).getBytes(), null, null);
+            pdfViewCtrl.openDocFromUrl(path, deobfuscatedCategoryBytes, null, null);
         }
     }
 
