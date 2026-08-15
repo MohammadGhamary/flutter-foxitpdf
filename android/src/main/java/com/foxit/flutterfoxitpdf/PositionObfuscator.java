@@ -5,7 +5,6 @@ import android.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-
 public class PositionObfuscator {
 
     private final String key;
@@ -72,13 +71,6 @@ public class PositionObfuscator {
         return sb.toString();
     }
 
-    /**
-     * NOTE: throws IllegalArgumentException if base64EncodeOutput is true
-     * and `obfuscated` is not valid Base64 (e.g. a decrypt upstream failed
-     * and produced garbage). Callers must catch this -- see
-     * PDFReaderActivity#openDocument, which wraps this call and fails
-     * cleanly instead of letting the exception crash the activity.
-     */
     public String deobfuscate(String obfuscated) {
         if (obfuscated == null || obfuscated.isEmpty()) {
             return obfuscated;
