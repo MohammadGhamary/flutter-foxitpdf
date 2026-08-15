@@ -129,7 +129,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
 
       if (translatorKey == null) {
         errorCode = Constants.e_ErrUnknown;
-        result.error("" + errorCode, "Failed to decrypt bookTranslatorE", errorCode);
+        result.error("" + errorCode, "Failed", errorCode);
         return;
       }
 
@@ -141,7 +141,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
 
       if (sn == null || key == null) {
         errorCode = Constants.e_ErrUnknown;
-        result.error("" + errorCode, "Failed to decrypt license", errorCode);
+        result.error("" + errorCode, "Failed", errorCode);
         return;
       }
 
@@ -149,9 +149,7 @@ public class FlutterFoxitpdfPlugin implements FlutterPlugin, MethodCallHandler, 
     } catch (Exception e) {
       // Log the exception type only -- never e.getMessage(), which could
       // echo back fragments of the key/token in some crypto providers.
-      Log.e(TAG, "Failed to decrypt license: " + e.getClass().getSimpleName());
       errorCode = Constants.e_ErrUnknown;
-      result.error("" + errorCode, "Failed to decrypt license", errorCode);
       return;
     }
 
